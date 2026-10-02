@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:22-alpine AS frontend-build
 
 WORKDIR /app
@@ -11,7 +13,9 @@ FROM php:8.4-apache
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libicu-dev \
         libonig-dev \
-    && docker-php-ext-install intl mbstring pdo_mysql pdo_sqlite \
+        libsqlite3-dev \
+        libzip-dev \
+    && docker-php-ext-install intl mbstring pdo_mysql pdo_sqlite zip \
     && a2enmod rewrite \
     && sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf \
     && sed -i 's/:80>/:8080>/' /etc/apache2/sites-available/000-default.conf \
@@ -25,7 +29,8 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 COPY backend/ ./
-RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
+RUN --mount=type=secret,id=composer_auth,target=/root/.composer/auth.json,required=false \
+    composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
     && touch database/database.sqlite \
     && chown -R www-data:www-data storage bootstrap/cache database/database.sqlite
 

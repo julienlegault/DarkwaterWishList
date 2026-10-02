@@ -43,6 +43,8 @@ jobs:
 
       - run: composer install --no-interaction --prefer-dist
         working-directory: backend
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
 
       - run: php artisan test
         working-directory: backend
@@ -60,10 +62,11 @@ jobs:
           REGION: ${{ vars.GCP_REGION }}
           REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
           SERVICE: ${{ vars.CLOUD_RUN_SERVICE_NAME }}
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
           gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-          docker build --tag "$IMAGE" .
+          docker build --secret id=composer_auth,env=COMPOSER_AUTH --tag "$IMAGE" .
           docker push "$IMAGE"
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
