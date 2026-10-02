@@ -1,0 +1,30 @@
+# This repo is split into backend/ (Laravel) and frontend/ (Vite/React),
+# each with its own .gitignore for project-specific build artifacts and
+# dependencies (vendor/, node_modules/, dist/, etc.). The patterns below are
+# a safety net for the repo root in case tooling is ever run from here.
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
