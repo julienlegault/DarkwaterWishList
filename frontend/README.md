@@ -32,6 +32,20 @@ The frontend talks to the backend exclusively through the client in
 (defaults to `/api`, relying on the dev server proxy). See `backend/README.md`
 for the list of available endpoints.
 
+## Wish list
+
+Once signed in, `src/components/WishList.tsx` renders the user's wish list:
+
+- `CardSearch` looks up card-name suggestions from `/api/cards/search` as the
+  user types.
+- Selecting a suggestion fetches that card's printings
+  (`/api/cards/{catalogId}/printings`) and adds the most recent one to the
+  wish list via `/api/wishlist`.
+- Each `WishListCard` shows the selected printing's artwork, a foil/non-foil
+  selector, and a button to remove the card.
+- Clicking a card's artwork opens `PrintingModal`, a grid of every printing
+  for that card; picking one updates the wish list item's printing.
+
 ## Scripts
 
 | Command           | Description                        |

@@ -15,3 +15,94 @@ body {
   max-width: 640px;
   padding: 2rem 1rem;
 }
+
+.card-search {
+  position: relative;
+}
+
+.card-search-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+}
+
+.card-search-suggestions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.wish-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+}
+
+.wish-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.wish-list-card-image {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.wish-list-card-image img {
+  width: 100%;
+  border-radius: 0.5rem;
+}
+
+.printing-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.printing-modal {
+  background: Canvas;
+  color: CanvasText;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.printing-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.printing-modal-grid button {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  width: 100%;
+}
+
+.printing-modal-grid img {
+  width: 100%;
+  border-radius: 0.25rem;
+}
