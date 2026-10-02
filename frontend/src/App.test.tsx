@@ -21,6 +21,10 @@ describe('App', () => {
     expect(
       await screen.findByText(/Backend is healthy/i),
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /sign in with google/i })).toHaveAttribute(
+      'href',
+      '/auth/google/redirect',
+    );
   });
 
   it('shows an error message when the health check fails', async () => {
