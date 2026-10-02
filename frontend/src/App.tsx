@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { getHealth } from './api/client';
+import { getCurrentUser, getHealth, type CurrentUser } from './api/client';
+import WishList from './components/WishList';
 
 type Status = 'loading' | 'ok' | 'error';
 
 function App() {
   const [status, setStatus] = useState<Status>('loading');
   const [timestamp, setTimestamp] = useState<string | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -19,6 +21,22 @@ function App() {
       .catch(() => {
         if (cancelled) return;
         setStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getCurrentUser()
+      .then((currentUser) => {
+        if (!cancelled) setUser(currentUser);
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
       });
 
     return () => {
@@ -45,6 +63,7 @@ function App() {
           </p>
         )}
       </section>
+      {user && <WishList />}
     </main>
   );
 }

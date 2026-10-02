@@ -44,6 +44,24 @@ Available endpoints:
 | GET    | `/api/user`   | Authenticated user's identity                 |
 | GET    | `/api/cards/search?q={name}` | Authenticated card-name suggestions |
 | GET    | `/api/cards/{catalogId}/printings` | Authenticated printings for an oracle or Scryfall ID |
+| GET    | `/api/wishlist` | The authenticated user's wish list |
+| POST   | `/api/wishlist` | Add a card (by `scryfall_id`) to the authenticated user's wish list, or update the existing entry for that card |
+| PATCH  | `/api/wishlist/{id}` | Update the foil selection or printing of one of the authenticated user's wish list items |
+| DELETE | `/api/wishlist/{id}` | Remove an item from the authenticated user's wish list |
+
+## Wish lists
+
+Each wish list item belongs to exactly one user and represents a single card
+identity (grouped by Scryfall oracle ID, or the Scryfall printing ID when no
+oracle ID is available). Adding a card already on the list updates the
+existing entry's printing/foil selection instead of creating a duplicate.
+Printings are validated against the `card_printings` catalog, and switching a
+wish list item to a different printing is rejected unless the new printing
+shares the same card identity. Each item stores a `tcgplayer_id` (nullable,
+since not every printing has one) and an `in_stock` boolean that SortSwift
+inventory webhooks will update. Wish list endpoints are scoped to the
+authenticated user: items are looked up through the user's own relationship,
+so one user can never view, update, or delete another user's wish list items.
 
 ## Scryfall card catalog
 
