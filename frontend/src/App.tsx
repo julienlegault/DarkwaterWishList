@@ -29,6 +29,7 @@ function App() {
   return (
     <main>
       <h1>Darkwater Wish List</h1>
+      <a href="/auth/google/redirect">Sign in with Google</a>
       <p>Application foundation: Laravel backend + React/TypeScript frontend.</p>
       <section aria-live="polite">
         <h2>Backend status</h2>
