@@ -19,7 +19,7 @@ class ScryfallCatalogRefresher
             ->json('data');
 
         $defaultCards = collect($bulkData)->firstWhere('type', 'default_cards');
-        $downloadUri = $defaultCards['download_uri'] ?? null;
+        $downloadUri = $defaultCards['jsonl_download_uri'] ?? null;
         $host = is_string($downloadUri) ? parse_url($downloadUri, PHP_URL_HOST) : null;
         if (! is_string($downloadUri)
             || parse_url($downloadUri, PHP_URL_SCHEME) !== 'https'
