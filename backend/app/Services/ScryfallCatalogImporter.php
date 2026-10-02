@@ -91,108 +91,176 @@ class ScryfallCatalogImporter
         }
 
         try {
-            $rootOpened = false;
-            $rootClosed = false;
-            $inObject = false;
-            $objectDepth = 0;
-            $inString = false;
-            $escaped = false;
-            $object = '';
+            $signature = fread($handle, 2);
+            rewind($handle);
 
-            while (! feof($handle)) {
-                $chunk = fread($handle, 1024 * 1024);
-                if ($chunk === false) {
-                    throw new RuntimeException('Unable to read Scryfall bulk data file.');
-                }
+            if ($signature === "\x1f\x8b") {
+                fclose($handle);
+                yield from $this->cardsFromGzipJsonLines($path);
 
-                $length = strlen($chunk);
-                for ($index = 0; $index < $length; $index++) {
-                    $character = $chunk[$index];
-
-                    if (! $rootOpened) {
-                        if (ctype_space($character)) {
-                            continue;
-                        }
-                        if ($character !== '[') {
-                            throw new RuntimeException('Scryfall bulk data must be a JSON array.');
-                        }
-                        $rootOpened = true;
-
-                        continue;
-                    }
-
-                    if ($rootClosed) {
-                        if (! ctype_space($character)) {
-                            throw new RuntimeException('Unexpected data after Scryfall bulk data array.');
-                        }
-
-                        continue;
-                    }
-
-                    if (! $inObject) {
-                        if (ctype_space($character) || $character === ',') {
-                            continue;
-                        }
-                        if ($character === ']') {
-                            $rootClosed = true;
-
-                            continue;
-                        }
-                        if ($character !== '{') {
-                            throw new RuntimeException('Scryfall bulk data array contains a non-object item.');
-                        }
-
-                        $inObject = true;
-                        $objectDepth = 1;
-                        $object = '{';
-
-                        continue;
-                    }
-
-                    $object .= $character;
-
-                    if ($inString) {
-                        if ($escaped) {
-                            $escaped = false;
-                        } elseif ($character === '\\') {
-                            $escaped = true;
-                        } elseif ($character === '"') {
-                            $inString = false;
-                        }
-
-                        continue;
-                    }
-
-                    if ($character === '"') {
-                        $inString = true;
-                    } elseif ($character === '{') {
-                        $objectDepth++;
-                    } elseif ($character === '}') {
-                        $objectDepth--;
-                        if ($objectDepth === 0) {
-                            try {
-                                $card = json_decode($object, true, 512, JSON_THROW_ON_ERROR);
-                            } catch (JsonException $exception) {
-                                throw new RuntimeException('Scryfall bulk data contains invalid JSON.', previous: $exception);
-                            }
-
-                            if (! is_array($card)) {
-                                throw new RuntimeException('Scryfall bulk data contains a non-object item.');
-                            }
-
-                            yield $card;
-                            $object = '';
-                            $inObject = false;
-                        }
-                    }
-                }
+                return;
             }
 
-            if (! $rootOpened || ! $rootClosed || $inObject) {
-                throw new RuntimeException('Scryfall bulk data JSON array is incomplete.');
+            $firstCharacter = '';
+            while (($character = fgetc($handle)) !== false) {
+                if (! ctype_space($character)) {
+                    $firstCharacter = $character;
+                    break;
+                }
+            }
+            rewind($handle);
+
+            if ($firstCharacter === '[') {
+                yield from $this->cardsFromJsonArray($handle);
+            } else {
+                yield from $this->cardsFromJsonLines($handle);
             }
         } finally {
-            fclose($handle);
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+        }
+    }
+
+    private function cardsFromGzipJsonLines(string $path): \Generator
+    {
+        $handle = gzopen($path, 'rb');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to open compressed Scryfall bulk data file.');
+        }
+
+        try {
+            yield from $this->cardsFromJsonLines($handle, true);
+        } finally {
+            gzclose($handle);
+        }
+    }
+
+    private function cardsFromJsonLines($handle, bool $compressed = false): \Generator
+    {
+        $lineNumber = 0;
+        while (($line = $compressed ? gzgets($handle) : fgets($handle)) !== false) {
+            $lineNumber++;
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+
+            try {
+                $card = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException $exception) {
+                throw new RuntimeException("Scryfall JSONL contains invalid JSON on line {$lineNumber}.", previous: $exception);
+            }
+
+            if (! is_array($card)) {
+                throw new RuntimeException("Scryfall JSONL contains a non-object item on line {$lineNumber}.");
+            }
+
+            yield $card;
+        }
+    }
+
+    private function cardsFromJsonArray($handle): \Generator
+    {
+        $rootOpened = false;
+        $rootClosed = false;
+        $inObject = false;
+        $objectDepth = 0;
+        $inString = false;
+        $escaped = false;
+        $object = '';
+
+        while (! feof($handle)) {
+            $chunk = fread($handle, 1024 * 1024);
+            if ($chunk === false) {
+                throw new RuntimeException('Unable to read Scryfall bulk data file.');
+            }
+
+            $length = strlen($chunk);
+            for ($index = 0; $index < $length; $index++) {
+                $character = $chunk[$index];
+
+                if (! $rootOpened) {
+                    if (ctype_space($character)) {
+                        continue;
+                    }
+                    if ($character !== '[') {
+                        throw new RuntimeException('Scryfall bulk data must be a JSON array.');
+                    }
+                    $rootOpened = true;
+
+                    continue;
+                }
+
+                if ($rootClosed) {
+                    if (! ctype_space($character)) {
+                        throw new RuntimeException('Unexpected data after Scryfall bulk data array.');
+                    }
+
+                    continue;
+                }
+
+                if (! $inObject) {
+                    if (ctype_space($character) || $character === ',') {
+                        continue;
+                    }
+                    if ($character === ']') {
+                        $rootClosed = true;
+
+                        continue;
+                    }
+                    if ($character !== '{') {
+                        throw new RuntimeException('Scryfall bulk data array contains a non-object item.');
+                    }
+
+                    $inObject = true;
+                    $objectDepth = 1;
+                    $object = '{';
+
+                    continue;
+                }
+
+                $object .= $character;
+
+                if ($inString) {
+                    if ($escaped) {
+                        $escaped = false;
+                    } elseif ($character === '\\') {
+                        $escaped = true;
+                    } elseif ($character === '"') {
+                        $inString = false;
+                    }
+
+                    continue;
+                }
+
+                if ($character === '"') {
+                    $inString = true;
+                } elseif ($character === '{') {
+                    $objectDepth++;
+                } elseif ($character === '}') {
+                    $objectDepth--;
+                    if ($objectDepth === 0) {
+                        try {
+                            $card = json_decode($object, true, 512, JSON_THROW_ON_ERROR);
+                        } catch (JsonException $exception) {
+                            throw new RuntimeException('Scryfall bulk data contains invalid JSON.', previous: $exception);
+                        }
+
+                        if (! is_array($card)) {
+                            throw new RuntimeException('Scryfall bulk data contains a non-object item.');
+                        }
+
+                        yield $card;
+                        $object = '';
+                        $inObject = false;
+                    }
+                }
+            }
+        }
+
+        if (! $rootOpened || ! $rootClosed || $inObject) {
+            throw new RuntimeException('Scryfall bulk data JSON array is incomplete.');
         }
     }
 

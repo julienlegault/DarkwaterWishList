@@ -61,6 +61,35 @@ class CardCatalogTest extends TestCase
             ->assertJsonPath('data.0.finishes', null);
     }
 
+    public function test_import_streams_gzip_jsonl_printings(): void
+    {
+        $user = User::factory()->create();
+        $cards = [
+            $this->printing('jsonl-one', 'jsonl-oracle', 'JSONL Card One', '2024-01-01', 12345),
+            $this->printing('jsonl-two', 'jsonl-oracle', 'JSONL Card Two', '2025-01-01'),
+        ];
+        $path = tempnam(sys_get_temp_dir(), 'scryfall-jsonl-');
+        $handle = gzopen($path, 'wb9');
+        foreach ($cards as $card) {
+            gzwrite($handle, json_encode($card, JSON_THROW_ON_ERROR)."\n");
+        }
+        gzclose($handle);
+
+        try {
+            $this->artisan('scryfall:refresh', ['--file' => $path])->assertExitCode(0);
+        } finally {
+            unlink($path);
+        }
+
+        $this->assertDatabaseCount('card_printings', 2);
+        $this->actingAs($user)
+            ->getJson('/api/cards/jsonl-oracle/printings')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.scryfall_id', 'jsonl-two')
+            ->assertJsonPath('data.1.tcgplayer_id', 12345);
+    }
+
     public function test_search_returns_one_suggestion_per_card_identity(): void
     {
         $user = User::factory()->create();

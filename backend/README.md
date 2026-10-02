@@ -58,17 +58,20 @@ Refresh the catalog from Scryfall's bulk-data API:
 php artisan scryfall:refresh
 ```
 
-To import a downloaded `default_cards` JSON file instead:
+To import a downloaded `default_cards` JSONL or JSONL.GZ file instead:
 
 ```bash
-php artisan scryfall:refresh --file=/path/to/default-cards.json
+php artisan scryfall:refresh --file=/path/to/default-cards.jsonl.gz
 ```
 
-Imports replace the catalog in a transaction, so a failed or empty import does
-not leave a partially refreshed catalog. Laravel's scheduler refreshes the
-catalog weekly. Run the scheduler continuously during local development with
-`php artisan schedule:work`; in production, configure the standard Laravel
-`schedule:run` cron entry to run every minute.
+The importer reads Scryfall's gzipped JSON Lines stream one card at a time
+without extracting the archive or loading the full catalog into memory. Plain
+JSONL and legacy JSON-array files are also accepted. Imports replace the catalog
+in a transaction, so a failed or empty import does not leave a partially
+refreshed catalog. Laravel's scheduler refreshes the catalog weekly. Run the
+scheduler continuously during local development with `php artisan schedule:work`;
+in production, configure the standard Laravel `schedule:run` cron entry to run
+every minute.
 
 ## Google sign-in
 
