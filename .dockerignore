@@ -1,0 +1,8 @@
+.git
+.github
+backend/.env
+backend/vendor
+backend/database/database.sqlite
+frontend/.env
+frontend/node_modules
+frontend/dist
