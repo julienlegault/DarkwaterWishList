@@ -8,7 +8,7 @@ use RuntimeException;
 
 class ScryfallCatalogImporter
 {
-    private const BATCH_SIZE = 500;
+    private const BATCH_SIZE = 70;
 
     public function importFile(string $path): int
     {
@@ -24,7 +24,7 @@ class ScryfallCatalogImporter
             $timestamp = now();
 
             foreach ($this->cardsFromFile($path) as $card) {
-                if (isset($card['games']) && ! in_array('paper', $card['games'], true)) {
+                if (is_array($card['games'] ?? null) && ! in_array('paper', $card['games'], true)) {
                     continue;
                 }
 

@@ -42,6 +42,33 @@ Available endpoints:
 | ------ | ------------- | ---------------------------------------------- |
 | GET    | `/api/health` | Health check used by the frontend and monitors |
 | GET    | `/api/user`   | Authenticated user's identity                 |
+| GET    | `/api/cards/search?q={name}` | Authenticated card-name suggestions |
+| GET    | `/api/cards/{catalogId}/printings` | Authenticated printings for an oracle or Scryfall ID |
+
+## Scryfall card catalog
+
+The catalog stores paper card printings from Scryfall's `default_cards` bulk
+dataset in SQLite. Each Scryfall printing ID is unique; oracle IDs group
+printings for a card. Image URLs, face image data, finishes, release details,
+and TCGplayer IDs (when supplied) are available from the printings endpoint.
+
+Refresh the catalog from Scryfall's bulk-data API:
+
+```bash
+php artisan scryfall:refresh
+```
+
+To import a downloaded `default_cards` JSON file instead:
+
+```bash
+php artisan scryfall:refresh --file=/path/to/default-cards.json
+```
+
+Imports replace the catalog in a transaction, so a failed or empty import does
+not leave a partially refreshed catalog. Laravel's scheduler refreshes the
+catalog weekly. Run the scheduler continuously during local development with
+`php artisan schedule:work`; in production, configure the standard Laravel
+`schedule:run` cron entry to run every minute.
 
 ## Google sign-in
 

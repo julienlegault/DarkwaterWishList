@@ -11,7 +11,8 @@ class ScryfallCatalogRefresher
 
     public function refresh(): int
     {
-        $bulkData = Http::acceptJson()
+        $bulkData = Http::withUserAgent('DarkwaterWishList/1.0')
+            ->acceptJson()
             ->timeout(30)
             ->get('https://api.scryfall.com/bulk-data')
             ->throw()
@@ -32,7 +33,8 @@ class ScryfallCatalogRefresher
         }
 
         try {
-            Http::withOptions(['sink' => $path])
+            Http::withUserAgent('DarkwaterWishList/1.0')
+                ->withOptions(['sink' => $path])
                 ->timeout(300)
                 ->get($downloadUri)
                 ->throw();
