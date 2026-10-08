@@ -67,7 +67,7 @@ jobs:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
-          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin "https://${REGION}-docker.pkg.dev"
           docker build --secret id=composer_auth,env=COMPOSER_AUTH --tag "$IMAGE" .
           docker push "$IMAGE"
           gcloud run deploy "$SERVICE" \
