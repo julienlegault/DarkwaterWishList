@@ -9,6 +9,12 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
     ->name('auth.google.callback');
 
 Route::get('/', function () {
+    $frontend = public_path('frontend/index.html');
+
+    if (is_file($frontend)) {
+        return response()->file($frontend);
+    }
+
     return response()->json([
         'name' => 'Darkwater Wish List API',
         'docs' => url('/api/health'),
