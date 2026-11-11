@@ -8,7 +8,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build -- --base=/frontend/
 
-FROM php:8.4-apache
+FROM php:8.5-apache
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libicu-dev \

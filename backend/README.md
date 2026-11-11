@@ -4,7 +4,7 @@ Laravel API backend for the Darkwater Wish List application, using SQLite for lo
 
 ## Requirements
 
-- PHP 8.3+
+- PHP 8.5+
 - Composer
 
 ## Setup
