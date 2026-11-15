@@ -21,6 +21,18 @@ implemented.
 
 ## Local development
 
+### Dev container
+
+Open the repository in a Dev Container (for example, in VS Code). The container
+uses PHP 8.5, Composer 2, and Node.js 22. On creation it installs dependencies,
+initializes missing environment files and the SQLite database, and runs
+migrations. Laravel and Vite start automatically whenever the container starts;
+their forwarded ports are 8000 and 5173 respectively. Existing `.env` files and
+application keys are preserved. Server logs are in `/tmp/darkwater-laravel.log`
+and `/tmp/darkwater-vite.log`.
+
+### Manual setup
+
 Run the backend and frontend in separate terminals.
 
 ### Backend (Laravel)

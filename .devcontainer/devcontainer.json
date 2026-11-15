@@ -1,0 +1,14 @@
+{
+  "name": "Darkwater Wish List",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "forwardPorts": [8000, 5173],
+  "portsAttributes": {
+    "8000": { "label": "Laravel API" },
+    "5173": { "label": "Vite frontend", "onAutoForward": "openBrowser" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start.sh"
+}
