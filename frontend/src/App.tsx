@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getCurrentUser, getHealth, type CurrentUser } from './api/client';
 import WishList from './components/WishList';
+import { Login } from './components/Login';
 
 type Status = 'loading' | 'ok' | 'error';
 
@@ -8,6 +9,7 @@ function App() {
   const [status, setStatus] = useState<Status>('loading');
   const [timestamp, setTimestamp] = useState<string | null>(null);
   const [user, setUser] = useState<CurrentUser | null>(null);
+  const [refreshUser, setRefreshUser] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,12 +44,15 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshUser]);
+
+  const handleLoginSuccess = () => {
+    setRefreshUser((prev) => !prev);
+  };
 
   return (
     <main>
       <h1>Darkwater Wish List</h1>
-      <a href="/auth/google/redirect">Sign in with Google</a>
       <p>Application foundation: Laravel backend + React/TypeScript frontend.</p>
       <section aria-live="polite">
         <h2>Backend status</h2>
@@ -63,7 +68,7 @@ function App() {
           </p>
         )}
       </section>
-      {user && <WishList />}
+      {user ? <WishList /> : <Login onSuccess={handleLoginSuccess} />}
     </main>
   );
 }

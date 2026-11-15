@@ -3,6 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Configure FRONTEND_URL for GitHub Codespaces
+if [[ -n "${CODESPACES:-}" ]]; then
+    export FRONTEND_URL="https://${CODESPACE_NAME}-5173.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+fi
+
 # Store process IDs for cleanup on script exit
 declare -a pids=()
 
@@ -55,7 +60,7 @@ start_server() {
 }
 
 start_server http://127.0.0.1:8000/api/health /tmp/darkwater-laravel.log "Laravel API" \
-    php backend/artisan serve --host=0.0.0.0 --port=8000
+    php backend/artisan serve --host=0.0.0.0 --port=8000 --no-reload
 start_server http://127.0.0.1:5173/ /tmp/darkwater-vite.log "Vite frontend" \
     npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173 --strictPort
 
@@ -63,6 +68,11 @@ echo ""
 echo "✓ All servers started!"
 echo "  • Laravel API: http://localhost:8000"
 echo "  • Vite frontend: http://localhost:5173"
+echo ""
+echo "🔐 GitHub Codespace Email Login:"
+echo "  In this GitHub Codespace environment, you can login with just an email address."
+echo "  Simply enter any email address on the login page to create/access your account."
+echo "  This email login feature is only available in GitHub Codespaces."
 echo ""
 echo "Press Ctrl+C to stop the servers"
 

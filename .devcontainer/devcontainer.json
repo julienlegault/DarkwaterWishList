@@ -9,6 +9,9 @@
     "8000": { "label": "Laravel API" },
     "5173": { "label": "Vite frontend", "onAutoForward": "openBrowser" }
   },
+  "remoteEnv": {
+    "VITE_CODESPACE_LOGIN": "true"
+  },
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "postStartCommand": "bash .devcontainer/start.sh"
 }

@@ -31,6 +31,20 @@ their forwarded ports are 8000 and 5173 respectively. Existing `.env` files and
 application keys are preserved. Server logs are in `/tmp/darkwater-laravel.log`
 and `/tmp/darkwater-vite.log`.
 
+#### Codespace email login
+
+When running in a GitHub Codespace, you can login by simply entering an email
+address instead of requiring Google OAuth setup. Click "Sign in with Email" and
+enter any email address to create or access your account. This email login is
+only available in GitHub Codespace environments and will not appear when running
+the application locally on your machine (where you'll need to use Google OAuth
+or set `VITE_CODESPACE_LOGIN=true` in your frontend `.env` if you want to test
+the email login locally).
+
+The browser uses the forwarded Vite URL; Vite proxies authentication and API
+requests to Laravel within the container. Restart the development servers after
+changing their configuration.
+
 ### Manual setup
 
 Run the backend and frontend in separate terminals.

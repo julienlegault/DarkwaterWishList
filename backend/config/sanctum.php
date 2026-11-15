@@ -1,10 +1,17 @@
 <?php
 
+$stateful = explode(',', env(
+    'SANCTUM_STATEFUL_DOMAINS',
+    'localhost:5173,127.0.0.1:5173,localhost,127.0.0.1',
+));
+
+if (env('APP_ENV') === 'local' && env('CODESPACES') === true
+    && env('CODESPACE_NAME') && env('GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN')) {
+    $stateful[] = env('CODESPACE_NAME').'-5173.'.env('GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN');
+}
+
 return [
-    'stateful' => explode(',', env(
-        'SANCTUM_STATEFUL_DOMAINS',
-        'localhost:5173,127.0.0.1:5173,localhost,127.0.0.1',
-    )),
+    'stateful' => $stateful,
 
     'guard' => ['web'],
 

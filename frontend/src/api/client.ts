@@ -19,15 +19,32 @@ export class ApiError extends Error {
   }
 }
 
+export async function csrfHeaders(): Promise<Record<string, string>> {
+  const response = await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+  if (!response.ok) {
+    throw new ApiError(`Failed to initialize session (${response.status})`, response.status);
+  }
+
+  const token = document.cookie.split('; ').find((cookie) => cookie.startsWith('XSRF-TOKEN='));
+  if (!token) {
+    throw new Error('Failed to initialize session: CSRF cookie is missing.');
+  }
+  return { 'X-XSRF-TOKEN': decodeURIComponent(token.slice('XSRF-TOKEN='.length)) };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const csrf = init?.method && !['GET', 'HEAD', 'OPTIONS'].includes(init.method.toUpperCase())
+    ? await csrfHeaders()
+    : {};
   const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
+    ...init,
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      ...csrf,
       ...init?.headers,
     },
-    ...init,
   });
 
   if (!response.ok) {
