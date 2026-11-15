@@ -13,6 +13,17 @@ class WishListItemFactory extends Factory
 {
     protected $model = WishListItem::class;
 
+    public function configure(): static
+    {
+        return $this->afterMaking(function (WishListItem $item) {
+            if (! $item->wish_list_id) {
+                $user = User::findOrFail($item->user_id);
+                $item->wish_list_id = ($user->wishLists()->orderBy('id')->first()
+                    ?? $user->wishLists()->create(['name' => 'Wish List']))->id;
+            }
+        });
+    }
+
     /**
      * @return array<string, mixed>
      */

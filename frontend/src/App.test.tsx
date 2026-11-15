@@ -25,66 +25,29 @@ describe('App', () => {
     vi.unstubAllEnvs();
     document.cookie = 'XSRF-TOKEN=; Max-Age=0; path=/';
   });
-  it('shows the backend status once the health check succeeds', async () => {
-    vi.stubGlobal(
-      'fetch',
-      mockFetchByPath({
-        '/health': { ok: true, json: () => ({ status: 'ok', timestamp: '2024-01-01T00:00:00Z' }) },
-        '/user': { ok: false, status: 401 },
-      }),
-    );
-
-    render(<App />);
-
-    expect(
-      await screen.findByText(/Backend is healthy/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /sign in with google/i })).toHaveAttribute(
-      'href',
-      '/auth/google/redirect',
-    );
-  });
-
-  it('shows an error message when the health check fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      mockFetchByPath({
-        '/health': { ok: false, status: 500 },
-        '/user': { ok: false, status: 401 },
-      }),
-    );
-
-    render(<App />);
-
-    expect(
-      await screen.findByText(/Unable to reach the backend API/i),
-    ).toBeInTheDocument();
-  });
-
   it('shows the wish list once the user is signed in', async () => {
     vi.stubGlobal(
       'fetch',
       mockFetchByPath({
-        '/health': { ok: true, json: () => ({ status: 'ok', timestamp: '2024-01-01T00:00:00Z' }) },
         '/user': { ok: true, json: () => ({ id: 1, name: 'Ash', email: 'ash@example.com' }) },
-        '/wishlist': { ok: true, json: () => ({ data: [] }) },
+        '/wish-lists': { ok: true, json: () => ({ data: [] }) },
       }),
     );
 
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: /your wish list/i }),
+      await screen.findByRole('heading', { name: 'Lists' }),
     ).toBeInTheDocument();
   });
 
   it('shows the login component when user is not authenticated', async () => {
+    const fetchMock = mockFetchByPath({
+      '/user': { ok: false, status: 401 },
+    });
     vi.stubGlobal(
       'fetch',
-      mockFetchByPath({
-        '/health': { ok: true, json: () => ({ status: 'ok', timestamp: '2024-01-01T00:00:00Z' }) },
-        '/user': { ok: false, status: 401 },
-      }),
+      fetchMock,
     );
 
     render(<App />);
@@ -92,6 +55,8 @@ describe('App', () => {
     expect(
       await screen.findByRole('heading', { name: /sign in/i }),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/backend status|application foundation/i)).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/health'));
   });
 
   it('initializes CSRF protection before submitting email login', async () => {
@@ -147,9 +112,9 @@ describe('App', () => {
       .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ data: {} }) });
     vi.stubGlobal('fetch', fetchMock);
 
-    await addWishListItem('test-card');
+    await addWishListItem(1, 'test-card');
 
-    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining('/wishlist'), expect.objectContaining({
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining('/wish-lists/1/items'), expect.objectContaining({
       method: 'POST',
       headers: expect.objectContaining({ 'X-XSRF-TOKEN': 'write-token' }),
     }));

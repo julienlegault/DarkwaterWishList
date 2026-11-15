@@ -8,6 +8,9 @@ if [[ -n "${CODESPACES:-}" ]]; then
     export FRONTEND_URL="https://${CODESPACE_NAME}-5173.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 fi
 
+echo "Refreshing Scryfall card catalog..."
+php backend/artisan scryfall:refresh
+
 # Store process IDs for cleanup on script exit
 declare -a pids=()
 

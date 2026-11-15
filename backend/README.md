@@ -44,14 +44,24 @@ Available endpoints:
 | GET    | `/api/user`   | Authenticated user's identity                 |
 | GET    | `/api/cards/search?q={name}` | Authenticated card-name suggestions |
 | GET    | `/api/cards/{catalogId}/printings` | Authenticated printings for an oracle or Scryfall ID |
-| GET    | `/api/wishlist` | The authenticated user's wish list |
-| POST   | `/api/wishlist` | Add a card (by `scryfall_id`) to the authenticated user's wish list, or update the existing entry for that card |
-| PATCH  | `/api/wishlist/{id}` | Update the foil selection or printing of one of the authenticated user's wish list items |
-| DELETE | `/api/wishlist/{id}` | Remove an item from the authenticated user's wish list |
+| GET, POST | `/api/wish-lists` | List or create the authenticated user's lists (`name`) |
+| PATCH | `/api/wish-lists/{list}` | Update the list's `notify_me` preference |
+| DELETE | `/api/wish-lists/{list}` | Delete a list and its items; provide its `name` for confirmation |
+| GET, POST | `/api/wish-lists/{list}/items` | List items or add a card by `scryfall_id` |
+| PATCH, DELETE | `/api/wish-lists/{list}/items/{item}` | Update or remove an item |
 
 ## Wish lists
 
-Each wish list item belongs to exactly one user and represents a single card
+Each wish list belongs to one user and has its own notification preference,
+which defaults to on for new lists. Existing preferences are preserved.
+The preference is stored but email delivery has not yet been implemented.
+Deleting a list requires its name; matching ignores case and non-alphanumeric
+characters. Names must contain at least one letter or number.
+Existing wish list items are migrated into a list named "Wish List". The legacy
+`/api/wishlist` endpoints operate on the user's first list (creating one if
+necessary).
+
+Each wish list item belongs to exactly one list and represents a single card
 identity (grouped by Scryfall oracle ID, or the Scryfall printing ID when no
 oracle ID is available). Adding a card already on the list updates the
 existing entry's printing/foil selection instead of creating a duplicate.
@@ -60,8 +70,8 @@ wish list item to a different printing is rejected unless the new printing
 shares the same card identity. Each item stores a `tcgplayer_id` (nullable,
 since not every printing has one) and an `in_stock` boolean that SortSwift
 inventory webhooks will update. Wish list endpoints are scoped to the
-authenticated user: items are looked up through the user's own relationship,
-so one user can never view, update, or delete another user's wish list items.
+authenticated user and selected list, so users cannot access another user's
+lists or items, or access an item through a different list.
 
 ## Scryfall card catalog
 
@@ -86,10 +96,11 @@ The importer reads Scryfall's gzipped JSON Lines stream one card at a time
 without extracting the archive or loading the full catalog into memory. Plain
 JSONL and legacy JSON-array files are also accepted. Imports replace the catalog
 in a transaction, so a failed or empty import does not leave a partially
-refreshed catalog. Laravel's scheduler refreshes the catalog weekly. Run the
-scheduler continuously during local development with `php artisan schedule:work`;
-in production, configure the standard Laravel `schedule:run` cron entry to run
-every minute.
+refreshed catalog. The dev container and each Cloud Run instance refresh the
+catalog on startup; an import failure prevents startup. Laravel's scheduler
+also defines a weekly refresh. Run the scheduler continuously during local
+development with `php artisan schedule:work`; in production, it runs only if
+the standard Laravel `schedule:run` cron entry is configured every minute.
 
 ## Google sign-in
 

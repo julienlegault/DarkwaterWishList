@@ -37,6 +37,9 @@ const boltItem: client.WishListItem = {
   },
 };
 
+const list = { id: 7, name: 'My List', notify_me: false };
+const renderWishList = () => render(<WishList list={list} busy={false} onNotifyChange={vi.fn()} onDelete={vi.fn()} />);
+
 describe('WishList', () => {
   afterEach(() => {
     vi.resetAllMocks();
@@ -45,7 +48,7 @@ describe('WishList', () => {
   it('renders the items already on the wish list', async () => {
     vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
 
-    render(<WishList />);
+    renderWishList();
 
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Lightning Bolt' })).toHaveAttribute(
@@ -63,7 +66,7 @@ describe('WishList', () => {
     vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
     vi.mocked(client.addWishListItem).mockResolvedValue({ data: boltItem });
 
-    render(<WishList />);
+    renderWishList();
 
     await screen.findByText(/your wish list is empty/i);
 
@@ -72,7 +75,7 @@ describe('WishList', () => {
     await user.click(suggestion);
 
     await waitFor(() => expect(client.getPrintings).toHaveBeenCalledWith('oracle-bolt'));
-    await waitFor(() => expect(client.addWishListItem).toHaveBeenCalledWith('printing-new'));
+    await waitFor(() => expect(client.addWishListItem).toHaveBeenCalledWith(7, 'printing-new'));
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
   });
 
@@ -83,13 +86,13 @@ describe('WishList', () => {
       data: { ...boltItem, foil: true },
     });
 
-    render(<WishList />);
+    renderWishList();
     await screen.findByText('Lightning Bolt');
 
     await user.selectOptions(screen.getByLabelText(/foil/i), 'foil');
 
     await waitFor(() =>
-      expect(client.updateWishListItem).toHaveBeenCalledWith(1, { foil: true }),
+      expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, { foil: true }),
     );
   });
 
@@ -98,12 +101,12 @@ describe('WishList', () => {
     vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
     vi.mocked(client.removeWishListItem).mockResolvedValue(undefined);
 
-    render(<WishList />);
+    renderWishList();
     await screen.findByText('Lightning Bolt');
 
     await user.click(screen.getByRole('button', { name: /remove lightning bolt/i }));
 
-    await waitFor(() => expect(client.removeWishListItem).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(client.removeWishListItem).toHaveBeenCalledWith(7, 1));
     await waitFor(() => expect(screen.queryByText('Lightning Bolt')).not.toBeInTheDocument());
   });
 
@@ -123,7 +126,7 @@ describe('WishList', () => {
       data: { ...boltItem, scryfall_id: 'printing-old', printing: altPrinting },
     });
 
-    render(<WishList />);
+    renderWishList();
     await screen.findByText('Lightning Bolt');
 
     await user.click(screen.getByRole('button', { name: /change printing/i }));
@@ -133,7 +136,7 @@ describe('WishList', () => {
     await user.click(altButton);
 
     await waitFor(() =>
-      expect(client.updateWishListItem).toHaveBeenCalledWith(1, { scryfallId: 'printing-old' }),
+      expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, { scryfallId: 'printing-old' }),
     );
   });
 });

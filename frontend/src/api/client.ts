@@ -149,11 +149,33 @@ export interface WishListItem {
   printing?: Printing | null;
 }
 
-/**
- * Fetches the authenticated user's wish list.
- */
-export function getWishList(): Promise<{ data: WishListItem[] }> {
-  return request('/wishlist');
+export interface WishList {
+  id: number;
+  name: string;
+  notify_me: boolean;
+}
+
+export function getWishLists(): Promise<{ data: WishList[] }> {
+  return request('/wish-lists');
+}
+
+export function createWishList(name: string): Promise<{ data: WishList }> {
+  return request('/wish-lists', { method: 'POST', body: JSON.stringify({ name }) });
+}
+
+export function updateWishList(id: number, notifyMe: boolean): Promise<{ data: WishList }> {
+  return request(`/wish-lists/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ notify_me: notifyMe }),
+  });
+}
+
+export function deleteWishList(id: number, name: string): Promise<void> {
+  return request(`/wish-lists/${id}`, { method: 'DELETE', body: JSON.stringify({ name }) });
+}
+
+export function getWishList(listId: number): Promise<{ data: WishListItem[] }> {
+  return request(`/wish-lists/${listId}/items`);
 }
 
 /**
@@ -162,10 +184,11 @@ export function getWishList(): Promise<{ data: WishListItem[] }> {
  * and foil selection instead of creating a duplicate entry.
  */
 export function addWishListItem(
+  listId: number,
   scryfallId: string,
   foil = false,
 ): Promise<{ data: WishListItem }> {
-  return request('/wishlist', {
+  return request(`/wish-lists/${listId}/items`, {
     method: 'POST',
     body: JSON.stringify({ scryfall_id: scryfallId, foil }),
   });
@@ -175,6 +198,7 @@ export function addWishListItem(
  * Updates an existing wish list item's printing and/or foil selection.
  */
 export function updateWishListItem(
+  listId: number,
   id: number,
   updates: { scryfallId?: string; foil?: boolean },
 ): Promise<{ data: WishListItem }> {
@@ -182,7 +206,7 @@ export function updateWishListItem(
   if (updates.scryfallId !== undefined) body.scryfall_id = updates.scryfallId;
   if (updates.foil !== undefined) body.foil = updates.foil;
 
-  return request(`/wishlist/${id}`, {
+  return request(`/wish-lists/${listId}/items/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
   });
@@ -191,6 +215,6 @@ export function updateWishListItem(
 /**
  * Removes an item from the authenticated user's wish list.
  */
-export function removeWishListItem(id: number): Promise<void> {
-  return request(`/wishlist/${id}`, { method: 'DELETE' });
+export function removeWishListItem(listId: number, id: number): Promise<void> {
+  return request(`/wish-lists/${listId}/items/${id}`, { method: 'DELETE' });
 }

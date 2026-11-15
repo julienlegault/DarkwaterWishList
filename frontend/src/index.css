@@ -12,8 +12,120 @@ body {
 
 #root {
   width: 100%;
-  max-width: 640px;
+  max-width: 1200px;
   padding: 2rem 1rem;
+}
+
+.lists-layout {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.lists-panel {
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.lists-panel-heading, .list-toolbar, .dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.lists-panel-heading {
+  justify-content: space-between;
+}
+
+.lists-panel-heading h2 {
+  margin: 0;
+}
+
+.lists-panel ul {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.lists-panel li button {
+  text-align: left;
+  width: 100%;
+  padding: 0.5rem;
+}
+
+.lists-panel [aria-current='true'] {
+  font-weight: bold;
+}
+
+.list-content {
+  min-width: 0;
+}
+
+.list-content h2 {
+  margin-top: 0;
+}
+
+.list-toolbar {
+  flex-wrap: wrap;
+  padding: 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+}
+
+.notify-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notify-toggle input {
+  appearance: none;
+  width: 2.5rem;
+  height: 1.4rem;
+  border: 1px solid currentColor;
+  border-radius: 1rem;
+  background: #777;
+  cursor: pointer;
+}
+
+.notify-toggle input::before {
+  content: '';
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  margin: 0.14rem;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+}
+
+.notify-toggle input:checked {
+  background: #059669;
+}
+
+.notify-toggle input:checked::before {
+  transform: translateX(1.05rem);
+}
+
+.button-danger {
+  background: #b91c1c;
+  color: white;
+}
+
+.list-dialog form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 650px) {
+  .lists-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Login Component Styles */

@@ -6,6 +6,7 @@ import {
   removeWishListItem,
   updateWishListItem,
   type CardSuggestion,
+  type WishList as WishListData,
   type WishListItem as WishListItemData,
 } from '../api/client';
 import CardSearch from './CardSearch';
@@ -21,7 +22,12 @@ function sortByName(items: WishListItemData[]): WishListItemData[] {
  * of the cards already on the list, and (when a card is selected) a modal
  * for choosing its printing.
  */
-function WishList() {
+function WishList({ list, onNotifyChange, onDelete, busy }: {
+  list: WishListData;
+  onNotifyChange: (notify: boolean) => void;
+  onDelete: () => void;
+  busy: boolean;
+}) {
   const [items, setItems] = useState<WishListItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +36,7 @@ function WishList() {
   useEffect(() => {
     let cancelled = false;
 
-    getWishList()
+    getWishList(list.id)
       .then((response) => {
         if (!cancelled) setItems(sortByName(response.data ?? []));
       })
@@ -44,7 +50,7 @@ function WishList() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [list.id]);
 
   const handleSelectCard = useCallback(async (card: CardSuggestion) => {
     try {
@@ -57,7 +63,7 @@ function WishList() {
         return;
       }
 
-      const response = await addWishListItem(mostRecentPrinting.scryfall_id);
+      const response = await addWishListItem(list.id, mostRecentPrinting.scryfall_id);
       setItems((current) =>
         sortByName([...current.filter((item) => item.id !== response.data.id), response.data]),
       );
@@ -65,29 +71,29 @@ function WishList() {
     } catch {
       setError(`Unable to add ${card.name} to your wish list.`);
     }
-  }, []);
+  }, [list.id]);
 
   const handleFoilChange = useCallback((item: WishListItemData, foil: boolean) => {
-    updateWishListItem(item.id, { foil })
+    updateWishListItem(list.id, item.id, { foil })
       .then((response) => {
         setItems((current) => current.map((i) => (i.id === item.id ? response.data : i)));
       })
       .catch(() => setError('Unable to update the foil selection.'));
-  }, []);
+  }, [list.id]);
 
   const handleRemove = useCallback((item: WishListItemData) => {
-    removeWishListItem(item.id)
+    removeWishListItem(list.id, item.id)
       .then(() => {
         setItems((current) => current.filter((i) => i.id !== item.id));
       })
       .catch(() => setError('Unable to remove that card.'));
-  }, []);
+  }, [list.id]);
 
   const handlePrintingSelected = useCallback(
     (scryfallId: string) => {
       if (!activeItem) return;
 
-      updateWishListItem(activeItem.id, { scryfallId })
+      updateWishListItem(list.id, activeItem.id, { scryfallId })
         .then((response) => {
           setItems((current) =>
             current.map((i) => (i.id === activeItem.id ? response.data : i)),
@@ -96,7 +102,7 @@ function WishList() {
         })
         .catch(() => setError('Unable to change the printing for that card.'));
     },
-    [activeItem],
+    [activeItem, list.id],
   );
 
   if (loading) {
@@ -105,8 +111,16 @@ function WishList() {
 
   return (
     <section aria-label="Wish list">
-      <h2>Your wish list</h2>
-      <CardSearch onSelectCard={handleSelectCard} />
+      <h2>{list.name}</h2>
+      <div className="list-toolbar">
+        <label className="notify-toggle">
+          <input type="checkbox" role="switch" disabled={busy} checked={list.notify_me} onChange={(event) => onNotifyChange(event.target.checked)} />
+          Notify Me
+        </label>
+        <CardSearch onSelectCard={handleSelectCard} />
+        <button type="button" className="button">Bulk Add</button>
+        <button type="button" className="button button-danger" onClick={onDelete}>Delete List</button>
+      </div>
       {error && <p role="alert">{error}</p>}
       <ul className="wish-list-grid" data-testid="wish-list-grid">
         {items.map((item) => (

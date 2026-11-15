@@ -13,11 +13,9 @@ frontend/  React + TypeScript app (Vite)
 
 ## Status
 
-This PR establishes the application foundation only: a working Laravel API,
-a working React/TypeScript frontend, a documented API boundary between them,
-and basic health-check functionality with automated tests on both sides.
-Authentication, card data, wish lists, and SortSwift integration are not yet
-implemented.
+Users can sign in, manage multiple wish lists, and add cards from the Scryfall
+catalog. Each list has a stored notification preference, but SortSwift
+integration and email notification delivery are not yet implemented.
 
 ## Local development
 
@@ -27,9 +25,10 @@ Open the repository in a Dev Container (for example, in VS Code). The container
 uses PHP 8.5, Composer 2, and Node.js 22. On creation it installs dependencies,
 initializes missing environment files and the SQLite database, and runs
 migrations. Laravel and Vite start automatically whenever the container starts;
-their forwarded ports are 8000 and 5173 respectively. Existing `.env` files and
-application keys are preserved. Server logs are in `/tmp/darkwater-laravel.log`
-and `/tmp/darkwater-vite.log`.
+before starting them, the container downloads and imports the Scryfall card
+catalog. Their forwarded ports are 8000 and 5173 respectively. Existing `.env`
+files and application keys are preserved. Server logs are in
+`/tmp/darkwater-laravel.log` and `/tmp/darkwater-vite.log`.
 
 #### Codespace email login
 
@@ -99,7 +98,10 @@ The `Deploy to Google Cloud Run` workflow runs on every push to `main` (and can
 also be started manually from the Actions tab). It runs the frontend and backend
 tests, builds a container containing both applications, and deploys it to Cloud
 Run. The container serves the frontend at `/`, the API at `/api/*`, and applies
-database migrations when it starts.
+database migrations and refreshes the Scryfall catalog before starting the web
+server. Every Cloud Run instance downloads and imports the catalog at startup;
+this increases startup time and requires access to Scryfall. An import failure
+prevents that instance from starting.
 
 ### One-time Google Cloud setup
 
@@ -183,6 +185,9 @@ for initial testing only. For durable testing, provision Cloud SQL for MySQL,
 attach it to the Cloud Run service, grant the runtime service account
 `roles/cloudsql.client`, and set `DB_CONNECTION=mysql`, `DB_DATABASE`,
 `DB_USERNAME`, `DB_PASSWORD`, and `DB_SOCKET=/cloudsql/INSTANCE_CONNECTION_NAME`
-in the service configuration. The startup migration command will then apply
-migrations to that database. Load the Scryfall catalog after deploying before
-trying card search; the catalog is not bundled with the application.
+in the service configuration. Startup migrations and catalog imports will then
+use that database. The catalog is not bundled with the application.
+
+TODO: Create a Google Cloud background task to refresh the Scryfall bulk data
+daily, and coordinate it with instance startup so shared databases do not run
+overlapping imports.
