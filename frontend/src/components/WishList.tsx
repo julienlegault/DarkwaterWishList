@@ -8,6 +8,7 @@ import {
   type CardSuggestion,
   type WishList as WishListData,
   type WishListItem as WishListItemData,
+  type WishListItemPreferences,
 } from '../api/client';
 import CardSearch from './CardSearch';
 import PrintingModal from './PrintingModal';
@@ -73,14 +74,6 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
     }
   }, [list.id]);
 
-  const handleFoilChange = useCallback((item: WishListItemData, foil: boolean) => {
-    updateWishListItem(list.id, item.id, { foil })
-      .then((response) => {
-        setItems((current) => current.map((i) => (i.id === item.id ? response.data : i)));
-      })
-      .catch(() => setError('Unable to update the foil selection.'));
-  }, [list.id]);
-
   const handleRemove = useCallback((item: WishListItemData) => {
     removeWishListItem(list.id, item.id)
       .then(() => {
@@ -89,18 +82,15 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
       .catch(() => setError('Unable to remove that card.'));
   }, [list.id]);
 
-  const handlePrintingSelected = useCallback(
-    (scryfallId: string) => {
-      if (!activeItem) return;
-
-      updateWishListItem(list.id, activeItem.id, { scryfallId })
-        .then((response) => {
-          setItems((current) =>
-            current.map((i) => (i.id === activeItem.id ? response.data : i)),
-          );
-          setActiveItem(null);
-        })
-        .catch(() => setError('Unable to change the printing for that card.'));
+  const handlePreferencesSaved = useCallback(
+    async (preferences: WishListItemPreferences) => {
+      if (!activeItem) throw new Error('No card selected.');
+      const response = await updateWishListItem(list.id, activeItem.id, preferences);
+      setItems((current) =>
+        current.map((i) => (i.id === activeItem.id ? response.data : i)),
+      );
+      setError(null);
+      setActiveItem(null);
     },
     [activeItem, list.id],
   );
@@ -127,7 +117,6 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
           <WishListCard
             key={item.id}
             item={item}
-            onFoilChange={(foil) => handleFoilChange(item, foil)}
             onRemove={() => handleRemove(item)}
             onOpenPrintings={() => setActiveItem(item)}
           />
@@ -137,10 +126,9 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
       {activeItem && (
         <PrintingModal
           key={activeItem.id}
-          catalogId={activeItem.catalog_id}
-          cardName={activeItem.card_name}
+          item={activeItem}
           onClose={() => setActiveItem(null)}
-          onSelect={handlePrintingSelected}
+          onSave={handlePreferencesSaved}
         />
       )}
     </section>

@@ -157,6 +157,135 @@ class WishListTest extends TestCase
         $this->assertDatabaseHas('wish_list_items', ['id' => $item->id, 'scryfall_id' => 'printing-x']);
     }
 
+    public function test_item_preferences_are_saved_and_preserved_when_any_printing_is_toggled(): void
+    {
+        $user = User::factory()->create();
+        $this->createPrinting('printing-a', 'oracle-print', 'Printable Card', 1);
+        $this->createPrinting('printing-b', 'oracle-print', 'Printable Card', 2);
+        $item = WishListItem::factory()->for($user)->create([
+            'catalog_id' => 'oracle-print',
+            'scryfall_id' => 'printing-a',
+        ]);
+        $selections = [
+            ['scryfall_id' => 'printing-a', 'quantity' => 2, 'foil_preference' => 'foil'],
+            ['scryfall_id' => 'printing-b', 'quantity' => 3, 'foil_preference' => 'nonfoil'],
+        ];
+
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
+            'foil_preference' => 'either',
+            'any_printing' => true,
+            'max_price_usd' => '12.50',
+            'any_printing_quantity' => 4,
+            'selected_printings' => $selections,
+        ])->assertOk()
+            ->assertJsonPath('data.foil_preference', 'either')
+            ->assertJsonPath('data.any_printing', true)
+            ->assertJsonPath('data.max_price_usd', '12.50')
+            ->assertJsonPath('data.any_printing_quantity', 4)
+            ->assertJsonPath('data.selected_printings', $selections);
+
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['any_printing' => false])
+            ->assertOk()->assertJsonPath('data.selected_printings', $selections);
+        $this->actingAs($user)->getJson('/api/wishlist')
+            ->assertOk()->assertJsonPath('data.0.selected_printings', $selections);
+    }
+
+    public function test_item_preferences_reject_invalid_printings_quantities_and_prices(): void
+    {
+        $user = User::factory()->create();
+        $this->createPrinting('printing-a', 'oracle-a', 'Card A', 1);
+        $this->createPrinting('printing-b', 'oracle-b', 'Card B', 2);
+        $item = WishListItem::factory()->for($user)->create([
+            'catalog_id' => 'oracle-a', 'scryfall_id' => 'printing-a',
+        ]);
+
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
+            'selected_printings' => [['scryfall_id' => 'printing-b', 'quantity' => 1]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('selected_printings');
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
+            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 0]],
+            'any_printing_quantity' => 0,
+            'max_price_usd' => '1.234',
+        ])->assertUnprocessable()->assertJsonValidationErrors([
+            'selected_printings.0.quantity', 'any_printing_quantity', 'max_price_usd',
+        ]);
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
+            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 1, 'foil_preference' => 'invalid']],
+        ])->assertUnprocessable()->assertJsonValidationErrors('selected_printings.0.foil_preference');
+    }
+
+    public function test_legacy_updates_preserve_or_update_printing_foil_preferences(): void
+    {
+        $user = User::factory()->create();
+        $this->createPrinting('printing-a', 'oracle-a', 'Card A', 1);
+        $item = WishListItem::factory()->for($user)->create([
+            'catalog_id' => 'oracle-a',
+            'scryfall_id' => 'printing-a',
+            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 1, 'foil_preference' => 'either']],
+        ]);
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
+            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 2]],
+        ])->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'either');
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['foil_preference' => 'nonfoil'])
+            ->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'either');
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['foil' => true])
+            ->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'foil');
+    }
+
+    public function test_preferences_migration_preserves_existing_foil_and_printing(): void
+    {
+        $user = User::factory()->create();
+        $item = WishListItem::factory()->for($user)->create([
+            'scryfall_id' => 'existing-printing', 'foil' => true,
+        ]);
+        $migration = require database_path('migrations/2026_11_15_000002_add_wish_list_item_preferences.php');
+        $migration->down();
+        $migration->up();
+
+        $item->refresh();
+        $this->assertSame('foil', $item->foil_preference);
+        $this->assertFalse($item->any_printing);
+        $this->assertSame([['scryfall_id' => 'existing-printing', 'quantity' => 1]], $item->selected_printings);
+    }
+
+    public function test_printing_foil_migration_preserves_previous_global_preference(): void
+    {
+        $user = User::factory()->create();
+        $item = WishListItem::factory()->for($user)->create([
+            'foil_preference' => 'either',
+            'selected_printings' => [['scryfall_id' => 'existing-printing', 'quantity' => 2]],
+        ]);
+        $migration = require database_path('migrations/2026_11_15_000003_add_printing_foil_preferences.php');
+        $migration->up();
+        $item->refresh();
+        $this->assertSame([
+            ['scryfall_id' => 'existing-printing', 'quantity' => 2, 'foil_preference' => 'either'],
+        ], $item->selected_printings);
+    }
+
+    public function test_preview_printings_follow_selection_or_most_recent_any_printings(): void
+    {
+        $user = User::factory()->create();
+        $selections = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $this->createPrinting("printing-$i", 'oracle-preview', 'Card', $i, "2024-01-0$i");
+            $selections[] = ['scryfall_id' => "printing-$i", 'quantity' => 1, 'foil_preference' => 'nonfoil'];
+        }
+        $item = WishListItem::factory()->for($user)->create([
+            'catalog_id' => 'oracle-preview',
+            'scryfall_id' => 'printing-1',
+            'selected_printings' => $selections,
+        ]);
+        $this->actingAs($user)->getJson('/api/wishlist')
+            ->assertOk()->assertJsonCount(5, 'data.0.preview_printings')
+            ->assertJsonPath('data.0.preview_printings.0.scryfall_id', 'printing-1')
+            ->assertJsonPath('data.0.preview_printings.4.scryfall_id', 'printing-5');
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['any_printing' => true])
+            ->assertOk()->assertJsonCount(5, 'data.preview_printings')
+            ->assertJsonPath('data.preview_printings.0.scryfall_id', 'printing-6')
+            ->assertJsonPath('data.preview_printings.4.scryfall_id', 'printing-2');
+    }
+
     public function test_destroy_removes_the_item(): void
     {
         $user = User::factory()->create();

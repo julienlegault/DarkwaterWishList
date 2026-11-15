@@ -144,9 +144,37 @@ export interface WishListItem {
   scryfall_id: string;
   card_name: string;
   foil: boolean;
+  foil_preference: 'foil' | 'nonfoil' | 'either';
+  any_printing: boolean;
+  max_price_usd: string | null;
+  any_printing_quantity: number;
+  selected_printings: PrintingSelection[] | null;
   tcgplayer_id: number | null;
   in_stock: boolean;
   printing?: Printing | null;
+  preview_printings: PreviewPrinting[];
+}
+
+export interface PreviewPrinting {
+  scryfall_id: string;
+  name: string;
+  image_uris: ImageUris | null;
+  card_faces: CardFace[] | null;
+}
+
+export interface PrintingSelection {
+  scryfall_id: string;
+  quantity: number;
+  foil_preference: WishListItem['foil_preference'];
+}
+
+export interface WishListItemPreferences {
+  foil_preference: WishListItem['foil_preference'];
+  any_printing: boolean;
+  max_price_usd: string | null;
+  any_printing_quantity: number;
+  selected_printings: PrintingSelection[];
+  scryfall_id?: string;
 }
 
 export interface WishList {
@@ -195,20 +223,16 @@ export function addWishListItem(
 }
 
 /**
- * Updates an existing wish list item's printing and/or foil selection.
+ * Updates an existing wish list item's printing and notification preferences.
  */
 export function updateWishListItem(
   listId: number,
   id: number,
-  updates: { scryfallId?: string; foil?: boolean },
+  updates: Partial<WishListItemPreferences>,
 ): Promise<{ data: WishListItem }> {
-  const body: Record<string, unknown> = {};
-  if (updates.scryfallId !== undefined) body.scryfall_id = updates.scryfallId;
-  if (updates.foil !== undefined) body.foil = updates.foil;
-
   return request(`/wish-lists/${listId}/items/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(body),
+    body: JSON.stringify(updates),
   });
 }
 

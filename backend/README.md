@@ -73,6 +73,17 @@ inventory webhooks will update. Wish list endpoints are scoped to the
 authenticated user and selected list, so users cannot access another user's
 lists or items, or access an item through a different list.
 
+Item preferences include an Any Printing `foil_preference` (`foil`, `nonfoil`, or `either`),
+`any_printing`, an optional `max_price_usd`, and `any_printing_quantity`.
+`selected_printings` contains Scryfall IDs, positive quantities, and individual
+`foil_preference` values for selected printings. Item responses also include up
+to five `preview_printings`: selected printings in selection order, or the most
+recent printings when Any Printing is enabled. Any Printing uses its own quantity and price limit; specific selections
+are retained but inactive until it is turned off. Existing items start with their
+previous printing selected at quantity one. These preferences are stored only:
+inventory matching, quantity tracking, and notification delivery are not yet
+implemented.
+
 ## Scryfall card catalog
 
 The catalog stores paper card printings from Scryfall's `default_cards` bulk

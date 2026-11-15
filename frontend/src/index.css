@@ -270,9 +270,19 @@ body {
   cursor: pointer;
 }
 
-.wish-list-card-image img {
-  width: 100%;
+.wish-list-card-artwork {
+  display: block;
+  position: relative;
+  aspect-ratio: 488 / 680;
+  overflow: hidden;
   border-radius: 0.5rem;
+}
+
+.wish-list-card-artwork img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .printing-modal-backdrop {
@@ -295,6 +305,36 @@ body {
   border-radius: 0.5rem;
 }
 
+.printing-variant-modal {
+  width: min(60rem, 100%);
+}
+
+.printing-modal-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+}
+
+.printing-modal-settings label:not(.notify-toggle) {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.printing-modal-settings input[type='number'] {
+  width: 9rem;
+}
+
+.printing-options {
+  border: 0;
+  margin: 1rem 0;
+  padding: 0;
+}
+
+.printing-options:disabled {
+  opacity: 0.45;
+}
+
 .printing-modal-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
@@ -304,15 +344,37 @@ body {
   padding: 0;
 }
 
-.printing-modal-grid button {
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  width: 100%;
+.printing-option-image {
+  position: relative;
+}
+
+.printing-set {
+  margin: 0.25rem 0;
+}
+
+.printing-foil {
+  display: grid;
 }
 
 .printing-modal-grid img {
+  display: block;
   width: 100%;
   border-radius: 0.25rem;
+}
+
+.printing-checkbox {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.2rem;
+  background: Canvas;
+  border-radius: 0.25rem;
+}
+
+.printing-quantity {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 5%;
+  box-sizing: border-box;
+  width: 90%;
 }

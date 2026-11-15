@@ -2,22 +2,20 @@ import type { WishListItem } from '../api/client';
 
 interface WishListCardProps {
   item: WishListItem;
-  onFoilChange: (foil: boolean) => void;
   onRemove: () => void;
   onOpenPrintings: () => void;
 }
 
 /**
  * Renders a single wish list entry: the card's artwork (for the currently
- * selected printing), a foil/non-foil selector, and a button to remove the
+ * selected printing) and a button to remove the
  * card from the list. Clicking the artwork opens the printing-selection
  * modal.
  */
-function WishListCard({ item, onFoilChange, onRemove, onOpenPrintings }: WishListCardProps) {
-  const image =
-    item.printing?.image_uris?.normal ??
-    item.printing?.card_faces?.[0]?.image_uris?.normal ??
-    null;
+function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
+  const images = item.preview_printings.map((printing) =>
+    printing.image_uris?.normal ?? printing.card_faces?.[0]?.image_uris?.normal ?? null,
+  ).filter((image): image is string => image !== null).slice(0, 5);
 
   return (
     <li className="wish-list-card">
@@ -27,8 +25,17 @@ function WishListCard({ item, onFoilChange, onRemove, onOpenPrintings }: WishLis
         onClick={onOpenPrintings}
         aria-label={`Change printing for ${item.card_name}`}
       >
-        {image ? (
-          <img src={image} alt={item.card_name} />
+        {images.length > 0 ? (
+          <span className="wish-list-card-artwork" role="img" aria-label={item.card_name}>
+            {images.map((image, index) => (
+              <img
+                key={`${image}-${index}`}
+                src={image}
+                alt=""
+                style={{ clipPath: `inset(0 ${(images.length - index - 1) * 100 / images.length}% 0 ${index * 100 / images.length}%)` }}
+              />
+            ))}
+          </span>
         ) : (
           <span className="wish-list-card-placeholder">{item.card_name}</span>
         )}
@@ -37,16 +44,6 @@ function WishListCard({ item, onFoilChange, onRemove, onOpenPrintings }: WishLis
       <p className="wish-list-card-stock">
         {item.in_stock ? 'In stock at Darkwater' : 'Not currently in stock'}
       </p>
-      <label>
-        Foil
-        <select
-          value={item.foil ? 'foil' : 'nonfoil'}
-          onChange={(event) => onFoilChange(event.target.value === 'foil')}
-        >
-          <option value="nonfoil">Non-foil</option>
-          <option value="foil">Foil</option>
-        </select>
-      </label>
       <button
         type="button"
         onClick={onRemove}

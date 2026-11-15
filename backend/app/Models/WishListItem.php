@@ -17,6 +17,10 @@ class WishListItem extends Model
         return [
             'foil' => 'boolean',
             'in_stock' => 'boolean',
+            'any_printing' => 'boolean',
+            'max_price_usd' => 'decimal:2',
+            'any_printing_quantity' => 'integer',
+            'selected_printings' => 'array',
         ];
     }
 
