@@ -348,8 +348,15 @@ body {
   position: relative;
 }
 
+.printing-image-label {
+  display: block;
+  cursor: pointer;
+}
+
 .printing-set {
+  display: block;
   margin: 0.25rem 0;
+  cursor: pointer;
 }
 
 .printing-foil {

@@ -162,6 +162,79 @@ describe('WishList', () => {
     expect(images[1]).toHaveStyle({ clipPath: 'inset(0 0% 0 50%)' });
   });
 
+  it('displays and saves the available finish for single-finish printings', async () => {
+    const user = userEvent.setup();
+    const foilOnly = { ...boltItem.printing!, finishes: ['foil'] };
+    const nonfoilOnly = {
+      ...boltItem.printing!, scryfall_id: 'nonfoil-only', set_name: 'Nonfoil set', finishes: ['nonfoil'],
+    };
+    const anotherFoilOnly = {
+      ...boltItem.printing!, scryfall_id: 'foil-only', set_name: 'Foil set', finishes: ['foil'],
+    };
+    const unknownFinish = {
+      ...boltItem.printing!, scryfall_id: 'unknown-finish', set_name: 'Unknown finish set', finishes: null,
+    };
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [foilOnly, nonfoilOnly, anotherFoilOnly, unknownFinish] });
+    vi.mocked(client.updateWishListItem).mockResolvedValue({ data: boltItem });
+
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const dialog = screen.getByRole('dialog');
+    const foilSelect = await within(dialog).findByLabelText(/foil for masters 25/i);
+    expect(foilSelect).toHaveValue('foil');
+    expect(foilSelect).toBeDisabled();
+    expect(within(dialog).getByLabelText(/foil for nonfoil set/i)).toHaveValue('nonfoil');
+
+    await user.click(within(dialog).getByRole('checkbox', { name: /select nonfoil set/i }));
+    expect(within(dialog).getByLabelText(/foil for nonfoil set/i)).toBeDisabled();
+    await user.click(within(dialog).getByRole('checkbox', { name: /select foil set/i }));
+    expect(within(dialog).getByLabelText(/foil for foil set/i)).toHaveValue('foil');
+    expect(within(dialog).getByLabelText(/foil for foil set/i)).toBeDisabled();
+    await user.click(within(dialog).getByRole('checkbox', { name: /select unknown finish set/i }));
+    expect(within(dialog).getByLabelText(/foil for unknown finish set/i)).toBeEnabled();
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
+      selected_printings: [
+        { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
+        { scryfall_id: 'nonfoil-only', quantity: 1, foil_preference: 'nonfoil' },
+        { scryfall_id: 'foil-only', quantity: 1, foil_preference: 'foil' },
+        { scryfall_id: 'unknown-finish', quantity: 1, foil_preference: 'nonfoil' },
+      ],
+    })));
+  });
+
+  it('toggles a printing from its card without toggling when editing its controls', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const dialog = screen.getByRole('dialog');
+    const checkbox = await within(dialog).findByRole('checkbox', { name: /select masters 25/i });
+    const image = within(dialog).getByRole('img', { name: /masters 25/i });
+    const save = within(dialog).getByRole('button', { name: 'Save' });
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' });
+    expect(save.compareDocumentPosition(checkbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(cancel.compareDocumentPosition(checkbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(image);
+    expect(checkbox).not.toBeChecked();
+    await user.click(within(dialog).getByText('Masters 25'));
+    expect(checkbox).toBeChecked();
+    const quantity = within(dialog).getByLabelText(/quantity for masters 25/i);
+    await user.clear(quantity);
+    await user.type(quantity, '3');
+    await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'foil');
+    expect(checkbox).toBeChecked();
+    expect(quantity).toHaveValue(3);
+
+    await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
+    await user.click(image);
+    expect(checkbox).toBeChecked();
+  });
+
   it('preserves specific selections when any printing is enabled and saves its price and quantity', async () => {
     const user = userEvent.setup();
     vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });

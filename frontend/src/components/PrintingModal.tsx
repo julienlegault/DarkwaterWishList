@@ -7,6 +7,12 @@ interface PrintingModalProps {
   onSave: (preferences: WishListItemPreferences) => Promise<void>;
 }
 
+function singleFinish(printing: Printing | undefined): 'foil' | 'nonfoil' | undefined {
+  const hasFoil = printing?.finishes?.includes('foil');
+  const hasNonfoil = printing?.finishes?.includes('nonfoil');
+  return hasFoil === hasNonfoil ? undefined : hasFoil ? 'foil' : 'nonfoil';
+}
+
 function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
   const [printings, setPrintings] = useState<Printing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +62,8 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
       selected_printings: selected.map((selection) => ({
         ...selection,
         quantity: Number(selection.quantity),
+        foil_preference: singleFinish(printings.find((printing) => printing.scryfall_id === selection.scryfall_id))
+          ?? selection.foil_preference,
       })),
     };
     if (!anyPrinting && selected.length > 0 && !selected.some((selection) => selection.scryfall_id === item.scryfall_id)) {
@@ -73,6 +81,10 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
     <div className="printing-modal-backdrop">
       <div className="printing-modal printing-variant-modal" role="dialog" aria-modal="true" aria-label={`Choose a printing for ${item.card_name}`}>
         <form onSubmit={handleSubmit}>
+          <div className="dialog-actions">
+            <button type="button" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" disabled={saving || loading}>Save</button>
+          </div>
           <div className="printing-modal-settings">
             <label className="notify-toggle">
               <input type="checkbox" role="switch" checked={anyPrinting} onChange={(event) => setAnyPrinting(event.target.checked)} />
@@ -109,20 +121,25 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                 const image = printing.image_uris?.normal ?? printing.card_faces?.[0]?.image_uris?.normal ?? null;
                 const label = `${printing.set_name ?? printing.set_code ?? printing.name}${printing.collector_number ? ` #${printing.collector_number}` : ''}`;
                 const selection = selected.find((entry) => entry.scryfall_id === printing.scryfall_id);
+                const finish = singleFinish(printing);
+                const checkboxId = `printing-${printing.scryfall_id}`;
 
                 return (
                   <li key={printing.scryfall_id} className="printing-option">
                     <div className="printing-option-image">
-                      {image ? <img src={image} alt={label} /> : <span>{label}</span>}
-                      <label className="printing-checkbox">
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${label}`}
-                          checked={!!selection}
-                          onChange={(event) => setSelected((current) => event.target.checked
-                            ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', foil_preference: 'nonfoil' }]
-                            : current.filter((entry) => entry.scryfall_id !== printing.scryfall_id))}
-                        />
+                      <label className="printing-image-label">
+                        {image ? <img src={image} alt={label} /> : <span>{label}</span>}
+                        <span className="printing-checkbox">
+                          <input
+                            id={checkboxId}
+                            type="checkbox"
+                            aria-label={`Select ${label}`}
+                            checked={!!selection}
+                            onChange={(event) => setSelected((current) => event.target.checked
+                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', foil_preference: finish ?? 'nonfoil' }]
+                              : current.filter((entry) => entry.scryfall_id !== printing.scryfall_id))}
+                          />
+                        </span>
                       </label>
                       {selection && (
                         <input
@@ -136,13 +153,13 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                         />
                       )}
                     </div>
-                    <p className="printing-set">{printing.set_name ?? printing.set_code ?? 'Unknown set'}</p>
+                    <label className="printing-set" htmlFor={checkboxId}>{printing.set_name ?? printing.set_code ?? 'Unknown set'}</label>
                     <label className="printing-foil">
                       Foil
                       <select
                         aria-label={`Foil for ${label}`}
-                        value={selection?.foil_preference ?? 'nonfoil'}
-                        disabled={!selection}
+                        value={finish ?? selection?.foil_preference ?? 'nonfoil'}
+                        disabled={!selection || !!finish}
                         onChange={(event) => {
                           const value = event.target.value as WishListItem['foil_preference'];
                           setSelected((current) => current.map((entry) =>
@@ -159,10 +176,6 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
               })}
             </ul>
           </fieldset>
-          <div className="dialog-actions">
-            <button type="button" onClick={onClose} disabled={saving}>Cancel</button>
-            <button type="submit" disabled={saving || loading}>Save</button>
-          </div>
         </form>
       </div>
     </div>
