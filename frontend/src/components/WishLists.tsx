@@ -15,15 +15,34 @@ function WishLists() {
 
   useEffect(() => {
     let cancelled = false;
-    getWishLists()
-      .then(({ data }) => {
-        if (!cancelled) {
+
+    async function loadLists() {
+      try {
+        const { data } = await getWishLists();
+        if (cancelled) return;
+
+        if (data.length === 0) {
+          try {
+            const { data: newList } = await createWishList('My Wishlist');
+            if (!cancelled) {
+              setLists([newList]);
+              setSelectedId(newList.id);
+            }
+          } catch {
+            if (!cancelled) setError('Unable to create default list.');
+          }
+        } else {
           setLists(data);
-          setSelectedId(data[0]?.id ?? null);
+          setSelectedId(data[0].id);
         }
-      })
-      .catch(() => { if (!cancelled) setError('Unable to load your lists.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      } catch {
+        if (!cancelled) setError('Unable to load your lists.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadLists();
     return () => { cancelled = true; };
   }, []);
 

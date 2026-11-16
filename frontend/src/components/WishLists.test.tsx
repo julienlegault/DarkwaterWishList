@@ -76,4 +76,21 @@ describe('WishLists', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to update notification settings');
     expect(toggle).not.toBeChecked();
   });
+
+  it('creates a default "My Wishlist" when user has no lists', async () => {
+    vi.mocked(client.getWishLists).mockResolvedValue({ data: [] });
+    vi.mocked(client.createWishList).mockResolvedValue({ data: { id: 1, name: 'My Wishlist', notify_me: true } });
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [] });
+    render(<WishLists />);
+    await screen.findByRole('heading', { name: 'My Wishlist' });
+    expect(client.createWishList).toHaveBeenCalledWith('My Wishlist');
+    expect(screen.getByRole('button', { name: 'My Wishlist' })).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('shows an error when creating the default list fails', async () => {
+    vi.mocked(client.getWishLists).mockResolvedValue({ data: [] });
+    vi.mocked(client.createWishList).mockRejectedValue(new Error('Network error'));
+    render(<WishLists />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to create default list');
+  });
 });
