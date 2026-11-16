@@ -11,6 +11,7 @@ import {
   type WishListItemPreferences,
 } from '../api/client';
 import CardSearch from './CardSearch';
+import BulkAddModal from './BulkAddModal';
 import PrintingModal from './PrintingModal';
 import WishListCard from './WishListCard';
 
@@ -33,6 +34,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<WishListItemData | null>(null);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +110,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
           Notify Me
         </label>
         <CardSearch onSelectCard={handleSelectCard} />
-        <button type="button" className="button">Bulk Add</button>
+        <button type="button" className="button" onClick={() => setBulkAddOpen(true)}>Bulk Add</button>
         <button type="button" className="button button-danger" onClick={onDelete}>Delete List</button>
       </div>
       {error && <p role="alert">{error}</p>}
@@ -123,6 +125,11 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
         ))}
       </ul>
       {items.length === 0 && <p>Your wish list is empty. Search for a card to add one.</p>}
+      {bulkAddOpen && (
+        <BulkAddModal listId={list.id} onClose={() => setBulkAddOpen(false)} onAdded={(item) => {
+          setItems((current) => sortByName([...current.filter((entry) => entry.id !== item.id), item]));
+        }} />
+      )}
       {activeItem && (
         <PrintingModal
           key={activeItem.id}

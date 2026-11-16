@@ -48,6 +48,7 @@ Available endpoints:
 | PATCH | `/api/wish-lists/{list}` | Update the list's `notify_me` preference |
 | DELETE | `/api/wish-lists/{list}` | Delete a list and its items; provide its `name` for confirmation |
 | GET, POST | `/api/wish-lists/{list}/items` | List items or add a card by `scryfall_id` |
+| POST | `/api/wish-lists/{list}/bulk-items` | Add one bulk-format card line atomically |
 | PATCH, DELETE | `/api/wish-lists/{list}/items/{item}` | Update or remove an item |
 
 ## Wish lists
@@ -88,6 +89,14 @@ are retained but inactive until it is turned off. Existing items start with thei
 previous printing selected at quantity one. These preferences are stored only:
 inventory matching, quantity tracking, and notification delivery are not yet
 implemented.
+
+Bulk add accepts one card per line: `[quantity] card name [(set) collector-number] [*F*]`.
+Quantity defaults to one and the finish defaults to nonfoil. Without a set and
+collector number, the most recent matching printing supporting that finish is
+selected. Repeated cards add to the existing total and selected printing
+quantities. A conflicting finish for the same printing, an existing Any Printing
+selection, a missing card or printing, or an invalid quantity leaves that line
+unchanged. The modal retains failed lines for correction.
 
 ## Scryfall card catalog
 

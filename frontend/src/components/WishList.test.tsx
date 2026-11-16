@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import WishList from './WishList';
 import * as client from '../api/client';
 
-vi.mock('../api/client', () => ({
+vi.mock('../api/client', async (importOriginal) => ({
+  ...await importOriginal<typeof client>(),
   getWishList: vi.fn(),
   addWishListItem: vi.fn(),
+  addBulkWishListLine: vi.fn(),
   updateWishListItem: vi.fn(),
   removeWishListItem: vi.fn(),
   searchCards: vi.fn(),
@@ -68,6 +70,42 @@ describe('WishList', () => {
       'src',
       'https://cards.example/bolt-new.jpg',
     );
+  });
+
+  it('keeps only failed lines, adds successful cards, and closes after retry', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [] });
+    vi.mocked(client.addBulkWishListLine)
+      .mockResolvedValueOnce({ data: boltItem })
+      .mockRejectedValueOnce(new client.ApiError('Invalid', 422, 'Card not found.'))
+      .mockResolvedValueOnce({ data: { ...boltItem, total_quantity: 2 } });
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: 'Bulk Add' }));
+    const input = screen.getByRole('textbox', { name: 'Cards' });
+    fireEvent.change(input, { target: { value: '1 Lightning Bolt (M25) 142\nUnknown Card' } });
+    await user.click(screen.getByRole('button', { name: 'Add Cards' }));
+    await waitFor(() => expect(input).toHaveValue('Unknown Card'));
+    expect(screen.getByRole('alert')).toHaveTextContent('Card not found.');
+    expect(screen.getByText('Lightning Bolt')).toBeInTheDocument();
+    expect(client.addBulkWishListLine).toHaveBeenNthCalledWith(1, 7, '1 Lightning Bolt (M25) 142');
+    expect(client.addBulkWishListLine).toHaveBeenNthCalledWith(2, 7, 'Unknown Card');
+    await user.click(screen.getByRole('button', { name: 'Add Cards' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByText('Quantity requested: 2')).toBeInTheDocument();
+  });
+
+  it('stops after an uncertain request and preserves unprocessed lines', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [] });
+    vi.mocked(client.addBulkWishListLine).mockRejectedValueOnce(new Error('Network error'));
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: 'Bulk Add' }));
+    const input = screen.getByRole('textbox', { name: 'Cards' });
+    fireEvent.change(input, { target: { value: 'First card\nSecond card' } });
+    await user.click(screen.getByRole('button', { name: 'Add Cards' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('may have been added');
+    expect(input).toHaveValue('First card\nSecond card');
+    expect(client.addBulkWishListLine).toHaveBeenCalledTimes(1);
   });
 
   it('adds a searched card to the wish list using its most recent printing', async () => {

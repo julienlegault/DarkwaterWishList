@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BulkWishListController;
 use App\Http\Controllers\Api\CardCatalogController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\WishListController;
@@ -32,6 +33,7 @@ Route::middleware('auth:sanctum')->prefix('wish-lists')->group(function (): void
     Route::delete('/{wishList}', [WishListsController::class, 'destroy']);
     Route::get('/{wishList}/items', [WishListController::class, 'index']);
     Route::post('/{wishList}/items', [WishListController::class, 'store']);
+    Route::post('/{wishList}/bulk-items', [BulkWishListController::class, 'store']);
     Route::patch('/{wishList}/items/{wishListItem}', [WishListController::class, 'update']);
     Route::delete('/{wishList}/items/{wishListItem}', [WishListController::class, 'destroy']);
 });

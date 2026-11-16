@@ -309,6 +309,22 @@ body {
   width: min(60rem, 100%);
 }
 
+.bulk-add-modal {
+  width: min(45rem, 100%);
+}
+
+.bulk-add-modal label,
+.bulk-add-modal textarea {
+  display: block;
+}
+
+.bulk-add-modal textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0.5rem 0 1rem;
+  resize: vertical;
+}
+
 .printing-modal-settings {
   display: flex;
   flex-wrap: wrap;

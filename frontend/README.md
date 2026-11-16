@@ -41,6 +41,9 @@ Once signed in, `src/components/WishList.tsx` renders the user's wish list:
 - Selecting a suggestion fetches that card's printings
   (`/api/cards/{catalogId}/printings`) and adds the most recent one to the
   wish list via `/api/wishlist`.
+- Bulk Add accepts one card per line, such as `2 Barbarian Ring (ODY) 313 *F*`.
+  Quantity and printing are optional; `*F*` selects foil. Failed lines remain
+  in the dialog while successfully added lines are removed.
 - Each `WishListCard` shows the selected printing's artwork, a foil/non-foil
   selector, and a button to remove the card.
 - Clicking a card's artwork opens `PrintingModal`, a grid of every printing

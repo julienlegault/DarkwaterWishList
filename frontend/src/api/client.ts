@@ -11,11 +11,13 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 export class ApiError extends Error {
   readonly status: number;
+  readonly detail?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, detail?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -48,9 +50,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
+    let detail: string | undefined;
+    if (response.status === 422 && response.headers.get('content-type')?.includes('application/json')) {
+      const body: { message?: string } = await response.json();
+      detail = body.message;
+    }
     throw new ApiError(
       `Request to ${path} failed with status ${response.status}`,
       response.status,
+      detail,
     );
   }
 
@@ -220,6 +228,13 @@ export function addWishListItem(
   return request(`/wish-lists/${listId}/items`, {
     method: 'POST',
     body: JSON.stringify({ scryfall_id: scryfallId, foil }),
+  });
+}
+
+export function addBulkWishListLine(listId: number, line: string): Promise<{ data: WishListItem }> {
+  return request(`/wish-lists/${listId}/bulk-items`, {
+    method: 'POST',
+    body: JSON.stringify({ line }),
   });
 }
 
