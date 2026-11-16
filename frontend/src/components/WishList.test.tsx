@@ -88,6 +88,9 @@ describe('WishList', () => {
     await waitFor(() => expect(client.getPrintings).toHaveBeenCalledWith('oracle-bolt'));
     await waitFor(() => expect(client.addWishListItem).toHaveBeenCalledWith(7, 'printing-new'));
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /change printing/i }));
+    await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
+    expect(screen.getByLabelText('Quantity')).toHaveValue(1);
   });
 
   it('removes an item from the wish list', async () => {
@@ -181,16 +184,15 @@ describe('WishList', () => {
     renderWishList();
     await user.click(await screen.findByRole('button', { name: /change printing/i }));
     const dialog = screen.getByRole('dialog');
-    const foilSelect = await within(dialog).findByLabelText(/foil for masters 25/i);
-    expect(foilSelect).toHaveValue('foil');
-    expect(foilSelect).toBeDisabled();
-    expect(within(dialog).getByLabelText(/foil for nonfoil set/i)).toHaveValue('nonfoil');
+    expect(await within(dialog).findByText('Foil only')).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/foil for masters 25/i)).not.toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('checkbox', { name: /select nonfoil set/i }));
-    expect(within(dialog).getByLabelText(/foil for nonfoil set/i)).toBeDisabled();
+    expect(within(dialog).getByText('Non-foil only')).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/foil for nonfoil set/i)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('checkbox', { name: /select foil set/i }));
-    expect(within(dialog).getByLabelText(/foil for foil set/i)).toHaveValue('foil');
-    expect(within(dialog).getByLabelText(/foil for foil set/i)).toBeDisabled();
+    expect(within(dialog).getAllByText('Foil only')).toHaveLength(2);
+    expect(within(dialog).queryByLabelText(/foil for foil set/i)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('checkbox', { name: /select unknown finish set/i }));
     expect(within(dialog).getByLabelText(/foil for unknown finish set/i)).toBeEnabled();
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
@@ -200,7 +202,7 @@ describe('WishList', () => {
         { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
         { scryfall_id: 'nonfoil-only', quantity: 1, foil_preference: 'nonfoil' },
         { scryfall_id: 'foil-only', quantity: 1, foil_preference: 'foil' },
-        { scryfall_id: 'unknown-finish', quantity: 1, foil_preference: 'nonfoil' },
+        { scryfall_id: 'unknown-finish', quantity: 1, foil_preference: 'either' },
       ],
     })));
   });
@@ -231,6 +233,7 @@ describe('WishList', () => {
     expect(quantity).toHaveValue(3);
 
     await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
+    expect(within(dialog).getByLabelText('Quantity')).toHaveValue(1);
     await user.click(image);
     expect(checkbox).toBeChecked();
   });
@@ -279,6 +282,7 @@ describe('WishList', () => {
     vi.mocked(client.updateWishListItem).mockResolvedValue({
       data: { ...boltItem, scryfall_id: alternate.scryfall_id, preview_printings: [alternate] },
     });
+
     renderWishList();
     await user.click(await screen.findByRole('button', { name: /change printing/i }));
     const dialog = screen.getByRole('dialog');
@@ -287,10 +291,25 @@ describe('WishList', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       scryfall_id: 'printing-old',
-      selected_printings: [{ scryfall_id: 'printing-old', quantity: 1, foil_preference: 'nonfoil' }],
+      selected_printings: [{ scryfall_id: 'printing-old', quantity: 1, foil_preference: 'either' }],
     })));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Lightning Bolt' }).querySelector('img')).toHaveAttribute('src', 'https://cards.example/old.jpg');
+  });
+
+  it('retains the saved quantity when reopening Any Printing preferences', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({
+      data: [{ ...boltItem, any_printing: true, any_printing_quantity: 4 }],
+    });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
+    renderWishList();
+
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+    await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
+    await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
+    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
   });
 
   it('shows at most five preview slices when Any Printing is selected', async () => {

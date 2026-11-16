@@ -95,7 +95,7 @@ class WishListController extends Controller
             ],
         );
 
-        $item->load('printing');
+        $item->refresh()->load('printing');
         $this->addPreviewPrintings(new Collection([$item]));
 
         return response()->json(['data' => $item], 201);

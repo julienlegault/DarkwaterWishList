@@ -385,3 +385,22 @@ body {
   box-sizing: border-box;
   width: 90%;
 }
+
+.printing-foil-selector {
+  position: absolute;
+  bottom: 3rem;
+  left: 5%;
+  box-sizing: border-box;
+  width: 90%;
+}
+
+.printing-foil-fixed {
+  display: block;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid CanvasText;
+  border-radius: 0.25rem;
+  background: Canvas;
+  color: CanvasText;
+  text-align: center;
+  font-size: 0.85rem;
+}

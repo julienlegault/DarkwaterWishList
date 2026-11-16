@@ -47,7 +47,9 @@ class WishListTest extends TestCase
             ->assertJsonPath('data.scryfall_id', 'printing-new')
             ->assertJsonPath('data.tcgplayer_id', 12345)
             ->assertJsonPath('data.foil', false)
-            ->assertJsonPath('data.in_stock', false);
+            ->assertJsonPath('data.in_stock', false)
+            ->assertJsonPath('data.any_printing', false)
+            ->assertJsonPath('data.any_printing_quantity', 1);
 
         $this->assertDatabaseHas('wish_list_items', [
             'user_id' => $user->id,
@@ -81,11 +83,13 @@ class WishListTest extends TestCase
         $newest = $this->createPrinting('printing-new', 'oracle-bolt', 'Lightning Bolt', 222, '2025-01-01');
 
         $this->actingAs($user)->postJson('/api/wishlist', ['scryfall_id' => 'printing-old'])->assertCreated();
+        WishListItem::query()->where('catalog_id', 'oracle-bolt')->update(['any_printing_quantity' => 4]);
         $this->actingAs($user)
             ->postJson('/api/wishlist', ['scryfall_id' => $newest->scryfall_id, 'foil' => true])
             ->assertCreated()
             ->assertJsonPath('data.scryfall_id', 'printing-new')
-            ->assertJsonPath('data.foil', true);
+            ->assertJsonPath('data.foil', true)
+            ->assertJsonPath('data.any_printing_quantity', 4);
 
         $this->assertDatabaseCount('wish_list_items', 1);
     }

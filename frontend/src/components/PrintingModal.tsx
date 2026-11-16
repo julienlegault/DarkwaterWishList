@@ -18,12 +18,12 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [foil, setFoil] = useState(item.foil_preference);
+  const [foil, setFoil] = useState<WishListItem['foil_preference']>(item.foil_preference ?? 'either');
   const [anyPrinting, setAnyPrinting] = useState(item.any_printing);
   const [price, setPrice] = useState(item.max_price_usd ?? '');
   const [quantity, setQuantity] = useState(String(item.any_printing_quantity));
   const [selected, setSelected] = useState(() =>
-    (item.selected_printings ?? [{ scryfall_id: item.scryfall_id, quantity: 1, foil_preference: item.foil_preference }])
+    (item.selected_printings ?? [{ scryfall_id: item.scryfall_id, quantity: 1, foil_preference: item.foil_preference ?? 'either' }])
       .map((selection) => ({ ...selection, quantity: String(selection.quantity) })),
   );
 
@@ -92,14 +92,14 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
             </label>
             {anyPrinting && (
               <>
-                <label>
-                  Foil
-                  <select value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
-                    <option value="nonfoil">Non-foil</option>
-                    <option value="foil">Foil</option>
-                    <option value="either">Either</option>
-                  </select>
-                </label>
+            <label>
+              Foil
+              <select value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
+                <option value="either">Either</option>
+                <option value="foil">Foil</option>
+                <option value="nonfoil">Non-foil</option>
+              </select>
+            </label>
                 <label>
                   Printings Under (USD)
                   <input type="number" min="0" max="99999999.99" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} />
@@ -136,41 +136,46 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                             aria-label={`Select ${label}`}
                             checked={!!selection}
                             onChange={(event) => setSelected((current) => event.target.checked
-                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', foil_preference: finish ?? 'nonfoil' }]
+                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', foil_preference: finish ?? 'either' }]
                               : current.filter((entry) => entry.scryfall_id !== printing.scryfall_id))}
                           />
                         </span>
                       </label>
                       {selection && (
-                        <input
-                          className="printing-quantity"
-                          aria-label={`Quantity for ${label}`}
-                          type="number" min="1" max="4294967295" step="1" required
-                          placeholder="Quantity"
-                          value={selection.quantity}
-                          onChange={(event) => setSelected((current) => current.map((entry) =>
-                            entry.scryfall_id === printing.scryfall_id ? { ...entry, quantity: event.target.value } : entry))}
-                        />
+                        <>
+                          <input
+                            className="printing-quantity"
+                            aria-label={`Quantity for ${label}`}
+                            type="number" min="1" max="4294967295" step="1" required
+                            placeholder="Quantity"
+                            value={selection.quantity}
+                            onChange={(event) => setSelected((current) => current.map((entry) =>
+                              entry.scryfall_id === printing.scryfall_id ? { ...entry, quantity: event.target.value } : entry))}
+                          />
+                          {finish ? (
+                            <span className="printing-foil-selector printing-foil-fixed">
+                              {finish === 'foil' ? 'Foil only' : 'Non-foil only'}
+                            </span>
+                          ) : (
+                            <select
+                              className="printing-foil-selector"
+                              aria-label={`Foil for ${label}`}
+                              value={selection.foil_preference}
+                              onChange={(event) => {
+                                const value = event.target.value as WishListItem['foil_preference'];
+                                setSelected((current) => current.map((entry) =>
+                                  entry.scryfall_id === printing.scryfall_id ? { ...entry, foil_preference: value } : entry));
+                              }}
+                            >
+                              <option value="either">Either</option>
+                              <option value="foil">Foil</option>
+                              <option value="nonfoil">Non-foil</option>
+                            </select>
+                          )}
+                        </>
                       )}
                     </div>
                     <label className="printing-set" htmlFor={checkboxId}>{printing.set_name ?? printing.set_code ?? 'Unknown set'}</label>
-                    <label className="printing-foil">
-                      Foil
-                      <select
-                        aria-label={`Foil for ${label}`}
-                        value={finish ?? selection?.foil_preference ?? 'nonfoil'}
-                        disabled={!selection || !!finish}
-                        onChange={(event) => {
-                          const value = event.target.value as WishListItem['foil_preference'];
-                          setSelected((current) => current.map((entry) =>
-                            entry.scryfall_id === printing.scryfall_id ? { ...entry, foil_preference: value } : entry));
-                        }}
-                      >
-                        <option value="nonfoil">Non-foil</option>
-                        <option value="foil">Foil</option>
-                        <option value="either">Either</option>
-                      </select>
-                    </label>
                   </li>
                 );
               })}
