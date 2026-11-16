@@ -1,6 +1,10 @@
 :root {
   font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color-scheme: light dark;
+  color: #fff;
+  color-scheme: dark;
+  background: #000;
+  --accent-color: #67A667;
+  --surface-color: #111;
 }
 
 body {
@@ -8,12 +12,75 @@ body {
   min-height: 100vh;
   display: flex;
   justify-content: center;
+  background: #000;
+  color: #fff;
 }
 
 #root {
   width: 100%;
   max-width: 1200px;
   padding: 2rem 1rem;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--accent-color);
+  border-radius: 0.375rem;
+  background: var(--surface-color);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+a {
+  color: var(--accent-color);
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--accent-color);
+  border-radius: 0.375rem;
+  background: var(--surface-color);
+  color: #fff;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.app-title {
+  margin: 0 0 2rem;
+}
+
+.app-title img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: 4rem;
+  object-fit: contain;
+  object-position: left;
 }
 
 .lists-layout {
@@ -23,7 +90,7 @@ body {
 }
 
 .lists-panel {
-  border: 1px solid currentColor;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 0.5rem;
   padding: 1rem;
 }
@@ -56,6 +123,8 @@ body {
 
 .lists-panel [aria-current='true'] {
   font-weight: bold;
+  background: var(--accent-color);
+  color: #fff;
 }
 
 .list-content {
@@ -69,7 +138,7 @@ body {
 .list-toolbar {
   flex-wrap: wrap;
   padding: 1rem;
-  border: 1px solid currentColor;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 0.5rem;
 }
 
@@ -83,9 +152,9 @@ body {
   appearance: none;
   width: 2.5rem;
   height: 1.4rem;
-  border: 1px solid currentColor;
+  border: 1px solid var(--accent-color);
   border-radius: 1rem;
-  background: #777;
+  background: #333;
   cursor: pointer;
 }
 
@@ -96,12 +165,12 @@ body {
   height: 1rem;
   margin: 0.14rem;
   border-radius: 50%;
-  background: white;
+  background: #fff;
   transition: transform 0.2s;
 }
 
 .notify-toggle input:checked {
-  background: #059669;
+  background: var(--accent-color);
 }
 
 .notify-toggle input:checked::before {
@@ -110,7 +179,12 @@ body {
 
 .button-danger {
   background: #b91c1c;
-  color: white;
+  color: #fff;
+}
+
+.button-danger:hover:not(:disabled) {
+  background: #991b1b;
+  color: #fff;
 }
 
 .list-dialog form {
@@ -164,8 +238,9 @@ body {
 }
 
 .button-google {
-  background-color: #1f2937;
-  color: white;
+  background-color: var(--surface-color);
+  border: 1px solid var(--accent-color);
+  color: #fff;
   display: block;
   width: 100%;
 }
@@ -194,21 +269,16 @@ body {
 
 .login-container input[type='email'] {
   padding: 0.75rem;
-  border: 1px solid currentColor;
-  border-radius: 0.375rem;
-  font-size: 1rem;
-  font-family: inherit;
 }
 
 .login-container input[type='email']:focus {
   outline: none;
-  border-color: currentColor;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(103, 166, 103, 0.25);
 }
 
 .button-local {
-  background-color: #10b981;
-  color: white;
+  background-color: var(--accent-color);
+  color: #fff;
 }
 
 .error-message {
@@ -325,8 +395,8 @@ body {
 }
 
 .printing-modal {
-  background: Canvas;
-  color: CanvasText;
+  background: var(--surface-color);
+  color: #fff;
   max-width: 100%;
   max-height: 100%;
   overflow: auto;
@@ -425,7 +495,7 @@ body {
   top: 0.4rem;
   right: 0.4rem;
   padding: 0.2rem;
-  background: Canvas;
+  background: var(--surface-color);
   border-radius: 0.25rem;
 }
 
@@ -448,10 +518,10 @@ body {
 .printing-foil-fixed {
   display: block;
   padding: 0.15rem 0.3rem;
-  border: 1px solid CanvasText;
+  border: 1px solid #fff;
   border-radius: 0.25rem;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--surface-color);
+  color: #fff;
   text-align: center;
   font-size: 0.85rem;
 }

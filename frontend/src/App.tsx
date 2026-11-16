@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getCurrentUser, type CurrentUser } from './api/client';
 import WishLists from './components/WishLists';
 import { Login } from './components/Login';
+import logo from './assets/DarkwaterLogo33.jxl';
 
 function App() {
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -29,7 +30,9 @@ function App() {
 
   return (
     <main>
-      <h1>Darkwater Wish List</h1>
+      <h1 className="app-title">
+        <img src={logo} alt="Darkwater Wish List" />
+      </h1>
       {user ? <WishLists /> : <Login onSuccess={handleLoginSuccess} />}
     </main>
   );
