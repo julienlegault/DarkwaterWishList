@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addWishListItem,
   getPrintings,
@@ -32,28 +32,64 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
 }) {
   const [items, setItems] = useState<WishListItemData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const generation = useRef(0);
+  const loadingRef = useRef(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const mutations = useRef(new Map<number, { version: number; item: WishListItemData | null }>());
+  const mutationVersion = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<WishListItemData | null>(null);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    getWishList(list.id)
-      .then((response) => {
-        if (!cancelled) setItems(sortByName(response.data ?? []));
-      })
-      .catch(() => {
-        if (!cancelled) setError('Unable to load your wish list.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+  const loadPage = useCallback(async (cursor?: string, reset = false) => {
+    if (loadingRef.current && !reset) return;
+    if (reset) generation.current++;
+    const requestGeneration = generation.current;
+    const requestVersion = mutationVersion.current;
+    loadingRef.current = true;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const response = cursor ? await getWishList(list.id, cursor) : await getWishList(list.id);
+      if (generation.current !== requestGeneration) return;
+      setItems((current) => {
+        const updated = [...mutations.current.entries()].filter(([, value]) => value.version > requestVersion);
+        const changedIds = new Set(updated.map(([id]) => id));
+        const loadedIds = new Set(response.data.map((item) => item.id));
+        return sortByName([
+          ...(reset ? [] : current.filter((item) => !loadedIds.has(item.id) && !changedIds.has(item.id))),
+          ...response.data.filter((item) => !changedIds.has(item.id)),
+          ...updated.flatMap(([, value]) => value.item ? [value.item] : []),
+        ]);
       });
-
-    return () => {
-      cancelled = true;
-    };
+      setNextCursor(response.next_cursor ?? null);
+    } catch {
+      if (generation.current === requestGeneration) setLoadError('Unable to load your wish list. Try again.');
+    } finally {
+      if (generation.current === requestGeneration) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
+    }
   }, [list.id]);
+
+  useEffect(() => {
+    const requestGeneration = generation;
+    void loadPage(undefined, true);
+    return () => { requestGeneration.current++; };
+  }, [loadPage]);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || !nextCursor || loading || loadError || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadPage(nextCursor);
+    }, { rootMargin: '300px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [nextCursor, loading, loadError, loadPage]);
 
   const handleSelectCard = useCallback(async (card: CardSuggestion) => {
     try {
@@ -67,6 +103,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
       }
 
       const response = await addWishListItem(list.id, mostRecentPrinting.scryfall_id);
+      mutations.current.set(response.data.id, { version: ++mutationVersion.current, item: response.data });
       setItems((current) =>
         sortByName([...current.filter((item) => item.id !== response.data.id), response.data]),
       );
@@ -79,6 +116,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
   const handleRemove = useCallback((item: WishListItemData) => {
     removeWishListItem(list.id, item.id)
       .then(() => {
+        mutations.current.set(item.id, { version: ++mutationVersion.current, item: null });
         setItems((current) => current.filter((i) => i.id !== item.id));
       })
       .catch(() => setError('Unable to remove that card.'));
@@ -88,6 +126,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
     async (preferences: WishListItemPreferences) => {
       if (!activeItem) throw new Error('No card selected.');
       const response = await updateWishListItem(list.id, activeItem.id, preferences);
+      mutations.current.set(response.data.id, { version: ++mutationVersion.current, item: response.data });
       setItems((current) =>
         current.map((i) => (i.id === activeItem.id ? response.data : i)),
       );
@@ -96,10 +135,6 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
     },
     [activeItem, list.id],
   );
-
-  if (loading) {
-    return <p>Loading your wish list…</p>;
-  }
 
   return (
     <section aria-label="Wish list">
@@ -114,6 +149,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
         <button type="button" className="button button-danger" onClick={onDelete}>Delete List</button>
       </div>
       {error && <p role="alert">{error}</p>}
+      {loadError && <p role="alert">{loadError}</p>}
       <ul className="wish-list-grid" data-testid="wish-list-grid">
         {items.map((item) => (
           <WishListCard
@@ -124,10 +160,18 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
           />
         ))}
       </ul>
-      {items.length === 0 && <p>Your wish list is empty. Search for a card to add one.</p>}
+      {loading && <p role="status">Loading your wish list…</p>}
+      {!loading && !loadError && items.length === 0 && <p>Your wish list is empty. Search for a card to add one.</p>}
+      {(nextCursor || loadError) && (
+        <div ref={loadMoreRef}>
+          <button type="button" disabled={loading} onClick={() => void loadPage(nextCursor ?? undefined, !nextCursor)}>
+            {loadError ? 'Retry loading' : 'Load more'}
+          </button>
+        </div>
+      )}
       {bulkAddOpen && (
-        <BulkAddModal listId={list.id} onClose={() => setBulkAddOpen(false)} onAdded={(item) => {
-          setItems((current) => sortByName([...current.filter((entry) => entry.id !== item.id), item]));
+        <BulkAddModal listId={list.id} onClose={() => setBulkAddOpen(false)} onAdded={() => {
+          void loadPage(undefined, true);
         }} />
       )}
       {activeItem && (

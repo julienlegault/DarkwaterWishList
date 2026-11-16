@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WishList from './WishList';
@@ -9,7 +9,7 @@ vi.mock('../api/client', async (importOriginal) => ({
   ...await importOriginal<typeof client>(),
   getWishList: vi.fn(),
   addWishListItem: vi.fn(),
-  addBulkWishListLine: vi.fn(),
+  addBulkWishListLines: vi.fn(),
   updateWishListItem: vi.fn(),
   removeWishListItem: vi.fn(),
   searchCards: vi.fn(),
@@ -58,6 +58,7 @@ const renderWishList = () => render(<WishList list={list} busy={false} onNotifyC
 describe('WishList', () => {
   afterEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('renders the items already on the wish list', async () => {
@@ -102,11 +103,13 @@ describe('WishList', () => {
 
   it('keeps only failed lines, adds successful cards, and closes after retry', async () => {
     const user = userEvent.setup();
-    vi.mocked(client.getWishList).mockResolvedValue({ data: [] });
-    vi.mocked(client.addBulkWishListLine)
-      .mockResolvedValueOnce({ data: boltItem })
-      .mockRejectedValueOnce(new client.ApiError('Invalid', 422, 'Card not found.'))
-      .mockResolvedValueOnce({ data: { ...boltItem, total_quantity: 2 } });
+    vi.mocked(client.getWishList)
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: [boltItem] })
+      .mockResolvedValueOnce({ data: [{ ...boltItem, total_quantity: 2 }] });
+    vi.mocked(client.addBulkWishListLines)
+      .mockResolvedValueOnce({ errors: [{ index: 1, message: 'Card not found.' }] })
+      .mockResolvedValueOnce({ errors: [] });
     renderWishList();
     await user.click(await screen.findByRole('button', { name: 'Bulk Add' }));
     const input = screen.getByRole('textbox', { name: 'Cards' });
@@ -114,18 +117,17 @@ describe('WishList', () => {
     await user.click(screen.getByRole('button', { name: 'Add Cards' }));
     await waitFor(() => expect(input).toHaveValue('Unknown Card'));
     expect(screen.getByRole('alert')).toHaveTextContent('Card not found.');
-    expect(screen.getByText('Lightning Bolt')).toBeInTheDocument();
-    expect(client.addBulkWishListLine).toHaveBeenNthCalledWith(1, 7, '1 Lightning Bolt (M25) 142');
-    expect(client.addBulkWishListLine).toHaveBeenNthCalledWith(2, 7, 'Unknown Card');
+    expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
+    expect(client.addBulkWishListLines).toHaveBeenCalledWith(7, ['1 Lightning Bolt (M25) 142', 'Unknown Card']);
     await user.click(screen.getByRole('button', { name: 'Add Cards' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByText('Quantity requested: 2')).toBeInTheDocument();
+    expect(await screen.findByText('Quantity requested: 2')).toBeInTheDocument();
   });
 
-  it('stops after an uncertain request and preserves unprocessed lines', async () => {
+  it('preserves lines after an uncertain batch request', async () => {
     const user = userEvent.setup();
     vi.mocked(client.getWishList).mockResolvedValue({ data: [] });
-    vi.mocked(client.addBulkWishListLine).mockRejectedValueOnce(new Error('Network error'));
+    vi.mocked(client.addBulkWishListLines).mockRejectedValueOnce(new Error('Network error'));
     renderWishList();
     await user.click(await screen.findByRole('button', { name: 'Bulk Add' }));
     const input = screen.getByRole('textbox', { name: 'Cards' });
@@ -133,7 +135,58 @@ describe('WishList', () => {
     await user.click(screen.getByRole('button', { name: 'Add Cards' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('may have been added');
     expect(input).toHaveValue('First card\nSecond card');
-    expect(client.addBulkWishListLine).toHaveBeenCalledTimes(1);
+    expect(client.addBulkWishListLines).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads the next page on demand and offers a retry after a page error', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList)
+      .mockResolvedValueOnce({ data: [boltItem], next_cursor: 'next' })
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce({ data: [{ ...boltItem, id: 2, card_name: 'Other Card' }], next_cursor: null });
+    renderWishList();
+    await screen.findByText('Lightning Bolt');
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load');
+    await user.click(screen.getByRole('button', { name: 'Retry loading' }));
+    expect(await screen.findByText('Other Card')).toBeInTheDocument();
+    expect(client.getWishList).toHaveBeenLastCalledWith(7, 'next');
+    expect(screen.getByText('Lightning Bolt')).toBeInTheDocument();
+  });
+
+  it('loads the next page when the end of the list is visible', async () => {
+    let notify: IntersectionObserverCallback | undefined;
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) { notify = callback; }
+      observe() {}
+      disconnect() {}
+    });
+    vi.mocked(client.getWishList)
+      .mockResolvedValueOnce({ data: [boltItem], next_cursor: 'next' })
+      .mockResolvedValueOnce({ data: [{ ...boltItem, id: 2, card_name: 'Other Card' }] });
+    renderWishList();
+    await screen.findByText('Lightning Bolt');
+    await waitFor(() => expect(notify).toBeDefined());
+    act(() => notify!([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(await screen.findByText('Other Card')).toBeInTheDocument();
+    expect(client.getWishList).toHaveBeenLastCalledWith(7, 'next');
+  });
+
+  it('closes the bulk modal before the refreshed page finishes loading', async () => {
+    const user = userEvent.setup();
+    let finishRefresh: (response: { data: client.WishListItem[] }) => void = () => {};
+    vi.mocked(client.getWishList)
+      .mockResolvedValueOnce({ data: [] })
+      .mockReturnValueOnce(new Promise((resolve) => { finishRefresh = resolve; }));
+    vi.mocked(client.addBulkWishListLines).mockResolvedValue({ errors: [] });
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: 'Bulk Add' }));
+    await user.type(screen.getByRole('textbox', { name: 'Cards' }), 'Lightning Bolt');
+    await user.click(screen.getByRole('button', { name: 'Add Cards' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent('Loading');
+    await act(async () => finishRefresh({ data: [boltItem] }));
+    expect(screen.getByText('Lightning Bolt')).toBeInTheDocument();
   });
 
   it('adds a searched card to the wish list using its most recent printing', async () => {

@@ -35,6 +35,29 @@ class WishListTest extends TestCase
             ->assertJsonPath('data.0.card_name', 'My Card');
     }
 
+    public function test_paginated_items_use_a_stable_cursor_and_are_list_scoped(): void
+    {
+        $user = User::factory()->create();
+        $list = $user->wishLists()->create(['name' => 'Cards']);
+        $otherUser = User::factory()->create();
+        $other = $otherUser->wishLists()->create(['name' => 'Other']);
+        for ($i = 0; $i < 35; $i++) {
+            WishListItem::factory()->for($user)->create(['wish_list_id' => $list->id, 'card_name' => 'Same Name']);
+        }
+        WishListItem::factory()->for($otherUser)->create(['wish_list_id' => $other->id]);
+        $url = "/api/wish-lists/{$list->id}/items?paginated=1";
+        $first = $this->actingAs($user)->getJson($url)->assertOk()->assertJsonCount(30, 'data');
+        $cursor = $first->json('next_cursor');
+        $this->assertNotNull($cursor);
+        $second = $this->getJson($url.'&cursor='.urlencode($cursor))
+            ->assertOk()->assertJsonCount(5, 'data')->assertJsonPath('next_cursor', null);
+        $this->assertCount(35, array_unique(array_merge(
+            array_column($first->json('data'), 'id'),
+            array_column($second->json('data'), 'id'),
+        )));
+        $this->getJson("/api/wish-lists/{$other->id}/items?paginated=1")->assertNotFound();
+    }
+
     public function test_store_adds_a_card_using_the_given_printing(): void
     {
         $user = User::factory()->create();

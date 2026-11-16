@@ -26,7 +26,15 @@ class WishListController extends Controller
 
     public function index(Request $request, ?int $wishList = null): JsonResponse
     {
-        $items = $this->list($request, $wishList)->items()->with('printing')->orderBy('card_name')->get();
+        $query = $this->list($request, $wishList)->items()->with('printing')->orderBy('card_name')->orderBy('id');
+        if ($request->boolean('paginated')) {
+            $page = $query->cursorPaginate(30);
+            app(WishListPreviewPrintings::class)->addTo($page->getCollection());
+
+            return response()->json(['data' => $page->items(), 'next_cursor' => $page->nextCursor()?->encode()]);
+        }
+
+        $items = $query->get();
         app(WishListPreviewPrintings::class)->addTo($items);
 
         return response()->json(['data' => $items]);

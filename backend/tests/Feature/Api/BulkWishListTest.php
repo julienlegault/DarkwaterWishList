@@ -98,4 +98,22 @@ class BulkWishListTest extends TestCase
             ->assertJsonPath('data.0.total_quantity', 4294967295)
             ->assertJsonPath('data.0.selected_printings.0.quantity', 4294967295);
     }
+
+    public function test_batch_reports_line_errors_and_merges_successes_in_order(): void
+    {
+        $user = User::factory()->create();
+        $list = $user->wishLists()->create(['name' => 'Cards']);
+        CardPrinting::query()->create([
+            'scryfall_id' => 'card', 'oracle_id' => 'oracle', 'name' => 'Card',
+            'set_code' => 'set', 'collector_number' => '1', 'finishes' => ['foil', 'nonfoil'],
+        ]);
+        $this->actingAs($user)->postJson("/api/wish-lists/{$list->id}/bulk-items", [
+            'lines' => ['2 Card', 'Missing', 'Card *F*', '3 Card', str_repeat('x', 401)],
+        ])->assertOk()
+            ->assertJsonCount(3, 'errors')
+            ->assertJsonPath('errors.0.index', 1)
+            ->assertJsonPath('errors.1.index', 2)
+            ->assertJsonPath('errors.2.index', 4);
+        $this->assertSame(5, $list->items()->firstOrFail()->total_quantity);
+    }
 }

@@ -211,8 +211,10 @@ export function deleteWishList(id: number, name: string): Promise<void> {
   return request(`/wish-lists/${id}`, { method: 'DELETE', body: JSON.stringify({ name }) });
 }
 
-export function getWishList(listId: number): Promise<{ data: WishListItem[] }> {
-  return request(`/wish-lists/${listId}/items`);
+export function getWishList(listId: number, cursor?: string): Promise<{ data: WishListItem[]; next_cursor?: string | null }> {
+  const params = new URLSearchParams({ paginated: '1' });
+  if (cursor) params.set('cursor', cursor);
+  return request(`/wish-lists/${listId}/items?${params}`);
 }
 
 /**
@@ -235,6 +237,13 @@ export function addBulkWishListLine(listId: number, line: string): Promise<{ dat
   return request(`/wish-lists/${listId}/bulk-items`, {
     method: 'POST',
     body: JSON.stringify({ line }),
+  });
+}
+
+export function addBulkWishListLines(listId: number, lines: string[]): Promise<{ errors: { index: number; message: string }[] }> {
+  return request(`/wish-lists/${listId}/bulk-items`, {
+    method: 'POST',
+    body: JSON.stringify({ lines }),
   });
 }
 

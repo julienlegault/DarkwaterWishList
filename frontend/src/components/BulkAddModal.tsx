@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react';
-import { ApiError, addBulkWishListLine, type WishListItem } from '../api/client';
+import { ApiError, addBulkWishListLines } from '../api/client';
 
 function BulkAddModal({ listId, onClose, onAdded }: {
   listId: number;
   onClose: () => void;
-  onAdded: (item: WishListItem) => void;
+  onAdded: () => void;
 }) {
   const [text, setText] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
@@ -19,29 +19,20 @@ function BulkAddModal({ listId, onClose, onAdded }: {
     }
     setSaving(true);
     setErrors([]);
-    const failed: string[] = [];
-    const messages: string[] = [];
-    for (let index = 0; index < lines.length; index++) {
-      const line = lines[index];
-      try {
-        const response = await addBulkWishListLine(listId, line);
-        onAdded(response.data);
-      } catch (error) {
-        failed.push(line);
-        if (error instanceof ApiError && error.status === 422) {
-          messages.push(`${line}: ${error.detail ?? 'Invalid card line.'}`);
-        } else {
-          failed.push(...lines.slice(index + 1));
-          messages.push('Unable to complete the request. The current line may have been added; reload and check the wish list before retrying.');
-          break;
-        }
+    try {
+      const { errors: failures } = await addBulkWishListLines(listId, lines);
+      onAdded();
+      if (failures.length === 0) {
+        onClose();
+      } else {
+        setText(failures.map(({ index }) => lines[index]).join('\n'));
+        setErrors(failures.map(({ index, message }) => `${lines[index]}: ${message}`));
+        setSaving(false);
       }
-    }
-    if (failed.length === 0) {
-      onClose();
-    } else {
-      setText(failed.join('\n'));
-      setErrors(messages);
+    } catch (error) {
+      setErrors([error instanceof ApiError && error.status === 422
+        ? error.detail ?? 'Invalid bulk request.'
+        : 'Unable to complete the request. Cards may have been added; reload and check the wish list before retrying.']);
       setSaving(false);
     }
   }

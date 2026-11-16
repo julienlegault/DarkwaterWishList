@@ -48,7 +48,7 @@ Available endpoints:
 | PATCH | `/api/wish-lists/{list}` | Update the list's `notify_me` preference |
 | DELETE | `/api/wish-lists/{list}` | Delete a list and its items; provide its `name` for confirmation |
 | GET, POST | `/api/wish-lists/{list}/items` | List items or add a card by `scryfall_id` |
-| POST | `/api/wish-lists/{list}/bulk-items` | Add one bulk-format card line atomically |
+| POST | `/api/wish-lists/{list}/bulk-items` | Add one line or a batch of bulk-format card lines |
 | PATCH, DELETE | `/api/wish-lists/{list}/items/{item}` | Update or remove an item |
 
 ## Wish lists
@@ -97,6 +97,12 @@ selected. Repeated cards add to the existing total and selected printing
 quantities. A conflicting finish for the same printing, an existing Any Printing
 selection, a missing card or printing, or an invalid quantity leaves that line
 unchanged. The modal retains failed lines for correction.
+The bulk endpoint accepts `lines` as an array and returns `errors` containing
+the zero-based index and message for each failed line. Successful lines are
+committed together in input order. The original single `line` form remains
+available. To load items incrementally, request `?paginated=1` and pass the
+returned `next_cursor` as `cursor` until it is null; omitting `paginated`
+retains the original complete response.
 
 ## Scryfall card catalog
 

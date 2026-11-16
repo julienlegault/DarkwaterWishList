@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CardPrinting;
+use App\Models\WishList;
+use App\Models\WishListItem;
 use App\Services\WishListPreviewPrintings;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -16,8 +18,42 @@ class BulkWishListController extends Controller
     public function store(Request $request, int $wishList): JsonResponse
     {
         $list = $request->user()->wishLists()->findOrFail($wishList);
-        $validated = $request->validate(['line' => ['required', 'string', 'max:400']]);
-        $line = trim($validated['line']);
+        $validated = $request->validate([
+            'line' => ['required_without:lines', 'string', 'max:400'],
+            'lines' => ['required_without:line', 'array', 'min:1'],
+            'lines.*' => ['required', 'string'],
+        ]);
+
+        if (isset($validated['lines'])) {
+            $errors = DB::transaction(function () use ($validated, $list, $request) {
+                $errors = [];
+                foreach ($validated['lines'] as $index => $line) {
+                    try {
+                        if (mb_strlen($line) > 400) {
+                            throw ValidationException::withMessages(['line' => 'The line must not exceed 400 characters.']);
+                        }
+                        $this->addLine($list, $request, $line);
+                    } catch (ValidationException $exception) {
+                        $errors[] = ['index' => $index, 'message' => $exception->validator->errors()->first()];
+                    }
+                }
+
+                return $errors;
+            });
+
+            return response()->json(['errors' => $errors]);
+        }
+
+        $item = $this->addLine($list, $request, $validated['line']);
+        $item->load('printing');
+        app(WishListPreviewPrintings::class)->addTo(new Collection([$item]));
+
+        return response()->json(['data' => $item], 201);
+    }
+
+    private function addLine(WishList $list, Request $request, string $line): WishListItem
+    {
+        $line = trim($line);
 
         if (! preg_match('/^(?:(\d+)\s+)?(.+?)(?:\s+\(([a-z0-9]+)\)\s+(\S+))?(?:\s+(\*F\*))?$/iu', $line, $matches)) {
             throw ValidationException::withMessages(['line' => 'Invalid card line.']);
@@ -37,14 +73,15 @@ class BulkWishListController extends Controller
                 ->whereRaw('LOWER(collector_number) = LOWER(?)', [$matches[4]]);
         }
         $printing = $query->orderByDesc('released_at')
-            ->orderByRaw("CASE WHEN lang = 'en' THEN 0 ELSE 1 END")->orderBy('scryfall_id')->get()
+            ->orderByRaw("CASE WHEN lang = 'en' THEN 0 ELSE 1 END")->orderBy('scryfall_id')
+            ->cursor(['scryfall_id', 'oracle_id', 'name', 'tcgplayer_id', 'finishes'])
             ->first(fn (CardPrinting $card) => $card->finishes === null || in_array($finish, $card->finishes, true));
 
         if (! $printing) {
             throw ValidationException::withMessages(['line' => 'Card, printing, or finish not found.']);
         }
 
-        $item = DB::transaction(function () use ($list, $request, $printing, $quantity, $foil, $finish) {
+        return DB::transaction(function () use ($list, $request, $printing, $quantity, $foil, $finish) {
             $catalogId = $printing->oracle_id ?? $printing->scryfall_id;
             $item = $list->items()->where('catalog_id', $catalogId)->lockForUpdate()->first();
 
@@ -93,10 +130,5 @@ class BulkWishListController extends Controller
 
             return $item;
         });
-
-        $item->load('printing');
-        app(WishListPreviewPrintings::class)->addTo(new Collection([$item]));
-
-        return response()->json(['data' => $item], 201);
     }
 }
