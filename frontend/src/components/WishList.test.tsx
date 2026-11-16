@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WishList from './WishList';
+import WishListCard from './WishListCard';
 import * as client from '../api/client';
 
 vi.mock('../api/client', async (importOriginal) => ({
@@ -70,6 +71,33 @@ describe('WishList', () => {
       'src',
       'https://cards.example/bolt-new.jpg',
     );
+  });
+
+  it('shows foil shine only on the matching visible printing stripes', () => {
+    const item: client.WishListItem = {
+      ...boltItem,
+      selected_printings: [
+        { scryfall_id: 'missing-image', quantity: 1, foil_preference: 'foil' },
+        { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'nonfoil' },
+        { scryfall_id: 'printing-old', quantity: 1, foil_preference: 'foil' },
+      ],
+      preview_printings: [
+        { ...boltItem.preview_printings[0], scryfall_id: 'missing-image', image_uris: null },
+        boltItem.preview_printings[0],
+        { ...boltItem.preview_printings[0], scryfall_id: 'printing-old' },
+      ],
+    };
+    const { rerender } = render(<WishListCard item={item} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
+    const artwork = screen.getByRole('img', { name: 'Lightning Bolt' });
+    expect(artwork.querySelectorAll('.foil-shine')).toHaveLength(1);
+    expect(artwork.querySelector('.foil-shine')).toHaveStyle({ clipPath: 'inset(0 0% 0 50%)' });
+
+    rerender(<WishListCard item={{ ...item, any_printing: true, foil_preference: 'foil' }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
+    expect(artwork.querySelectorAll('.foil-shine')).toHaveLength(2);
+    rerender(<WishListCard item={{ ...item, any_printing: true, foil_preference: 'either' }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
+    expect(artwork.querySelectorAll('.foil-shine')).toHaveLength(0);
+    rerender(<WishListCard item={{ ...boltItem, selected_printings: null, foil_preference: 'foil' }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
+    expect(artwork.querySelectorAll('.foil-shine')).toHaveLength(1);
   });
 
   it('keeps only failed lines, adds successful cards, and closes after retry', async () => {
@@ -178,6 +206,12 @@ describe('WishList', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Masters 25')).toBeInTheDocument();
     expect(within(dialog).queryByRole('combobox', { name: 'Foil' })).not.toBeInTheDocument();
+    const selectedArtwork = within(dialog).getByRole('img', { name: /masters 25/i }).parentElement!;
+    expect(selectedArtwork.querySelector('.foil-shine')).not.toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'foil');
+    expect(selectedArtwork.querySelector('.foil-shine')).toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'either');
+    expect(selectedArtwork.querySelector('.foil-shine')).not.toBeInTheDocument();
     await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'foil');
     await user.click(within(dialog).getByRole('checkbox', { name: /select limited edition alpha/i }));
     await user.selectOptions(within(dialog).getByLabelText(/foil for limited edition alpha/i), 'either');
@@ -203,6 +237,9 @@ describe('WishList', () => {
     expect(images).toHaveLength(2);
     expect(images[0]).toHaveStyle({ clipPath: 'inset(0 50% 0 0%)' });
     expect(images[1]).toHaveStyle({ clipPath: 'inset(0 0% 0 50%)' });
+    const shine = screen.getByRole('img', { name: 'Lightning Bolt' }).querySelectorAll('.foil-shine');
+    expect(shine).toHaveLength(1);
+    expect(shine[0]).toHaveStyle({ clipPath: 'inset(0 50% 0 0%)' });
   });
 
   it.each([1, 10])('saves and displays a total of %i for three selected printings', async (total) => {
@@ -287,6 +324,10 @@ describe('WishList', () => {
     const dialog = screen.getByRole('dialog');
     expect(await within(dialog).findByText('Foil only')).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/foil for masters 25/i)).not.toBeInTheDocument();
+    const foilArtwork = within(dialog).getByRole('img', { name: /^foil set/i }).parentElement!;
+    const nonfoilArtwork = within(dialog).getByRole('img', { name: /nonfoil set/i }).parentElement!;
+    expect(foilArtwork.querySelector('.foil-shine')).toBeInTheDocument();
+    expect(nonfoilArtwork.querySelector('.foil-shine')).not.toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('checkbox', { name: /select nonfoil set/i }));
     expect(within(dialog).getByText('Non-foil only')).toBeInTheDocument();

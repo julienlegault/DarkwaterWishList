@@ -143,7 +143,14 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                   <li key={printing.scryfall_id} className="printing-option">
                     <div className="printing-option-image">
                       <label className="printing-image-label">
-                        {image ? <img src={image} alt={label} /> : <span>{label}</span>}
+                        {image ? (
+                          <span className="printing-artwork">
+                            <img src={image} alt={label} />
+                            {(finish === 'foil' || (finish !== 'nonfoil' && selection?.foil_preference === 'foil')) && (
+                              <span className="foil-shine" aria-hidden="true" />
+                            )}
+                          </span>
+                        ) : <span>{label}</span>}
                         <span className="printing-checkbox">
                           <input
                             id={checkboxId}

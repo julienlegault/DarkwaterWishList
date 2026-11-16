@@ -13,9 +13,10 @@ interface WishListCardProps {
  * modal.
  */
 function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
-  const images = item.preview_printings.map((printing) =>
-    printing.image_uris?.normal ?? printing.card_faces?.[0]?.image_uris?.normal ?? null,
-  ).filter((image): image is string => image !== null).slice(0, 5);
+  const images = item.preview_printings.map((printing) => ({
+    id: printing.scryfall_id,
+    image: printing.image_uris?.normal ?? printing.card_faces?.[0]?.image_uris?.normal ?? null,
+  })).filter((printing): printing is { id: string; image: string } => printing.image !== null).slice(0, 5);
 
   return (
     <li className="wish-list-card">
@@ -27,14 +28,28 @@ function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
       >
         {images.length > 0 ? (
           <span className="wish-list-card-artwork" role="img" aria-label={item.card_name}>
-            {images.map((image, index) => (
+            {images.map(({ id, image }, index) => (
               <img
-                key={`${image}-${index}`}
+                key={`${id}-${index}`}
                 src={image}
                 alt=""
                 style={{ clipPath: `inset(0 ${(images.length - index - 1) * 100 / images.length}% 0 ${index * 100 / images.length}%)` }}
               />
             ))}
+            {images.map(({ id }, index) => {
+              const preference = item.any_printing
+                ? item.foil_preference
+                : item.selected_printings?.find((selection) => selection.scryfall_id === id)?.foil_preference
+                  ?? (item.selected_printings === null ? item.foil_preference : undefined);
+              return preference === 'foil' ? (
+                <span
+                  key={id}
+                  className="foil-shine"
+                  aria-hidden="true"
+                  style={{ clipPath: `inset(0 ${(images.length - index - 1) * 100 / images.length}% 0 ${index * 100 / images.length}%)` }}
+                />
+              ) : null;
+            })}
           </span>
         ) : (
           <span className="wish-list-card-placeholder">{item.card_name}</span>

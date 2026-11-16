@@ -285,6 +285,35 @@ body {
   height: 100%;
 }
 
+.foil-shine {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.foil-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 108, 151, 0.18) 35%, rgba(255, 226, 130, 0.18) 43%, rgba(128, 233, 201, 0.18) 51%, rgba(150, 179, 255, 0.18) 59%, transparent 75%);
+  background-size: 250% 100%;
+  animation: foil-shimmer 6s ease-in-out infinite alternate;
+}
+
+@keyframes foil-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foil-shine::after {
+    animation: none;
+    background-position: 50% 0;
+  }
+}
+
 .printing-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -367,6 +396,12 @@ body {
 .printing-image-label {
   display: block;
   cursor: pointer;
+}
+
+.printing-artwork {
+  display: block;
+  position: relative;
+  border-radius: 0.25rem;
 }
 
 .printing-set {
