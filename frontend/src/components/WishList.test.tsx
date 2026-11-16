@@ -402,6 +402,37 @@ describe('WishList', () => {
     })));
   });
 
+  it('preserves etched selections when viewing and saving printing preferences', async () => {
+    const user = userEvent.setup();
+    const mixed = { ...boltItem.printing!, finishes: ['foil', 'etched'] };
+    const etchedOnly = { ...boltItem.printing!, scryfall_id: 'etched-only', set_name: 'Etched set', finishes: ['etched'] };
+    const item: client.WishListItem = {
+      ...boltItem,
+      foil: true,
+      foil_preference: 'etched',
+      selected_printings: [{ scryfall_id: 'printing-new', quantity: 1, foil_preference: 'etched' }],
+    };
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [item] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [mixed, etchedOnly] });
+    vi.mocked(client.updateWishListItem).mockResolvedValue({ data: item });
+    renderWishList();
+    const artwork = await screen.findByRole('img', { name: 'Lightning Bolt' });
+    expect(artwork.querySelector('.foil-shine')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /change printing/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(await within(dialog).findByLabelText(/foil for masters 25/i)).toHaveValue('etched');
+    await user.click(within(dialog).getByRole('checkbox', { name: /select etched set/i }));
+    expect(within(dialog).getByText('Etched foil only')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
+      foil_preference: 'etched',
+      selected_printings: [
+        { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'etched' },
+        { scryfall_id: 'etched-only', quantity: 1, foil_preference: 'etched' },
+      ],
+    })));
+  });
+
   it('toggles a printing from its card without toggling when editing its controls', async () => {
     const user = userEvent.setup();
     vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });

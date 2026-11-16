@@ -55,7 +55,7 @@ class BulkWishListController extends Controller
     {
         $line = trim($line);
 
-        if (! preg_match('/^(?:(\d+)\s+)?(.+?)(?:\s+\(([a-z0-9]+)\)\s+(\S+))?(?:\s+(\*F\*))?$/iu', $line, $matches)) {
+        if (! preg_match('/^(?:(\d+)\s+)?(.+?)(?:\s+\(([a-z0-9]+)\)\s+(\S+))?(?:\s+\*([FE])\*)?$/iu', $line, $matches)) {
             throw ValidationException::withMessages(['line' => 'Invalid card line.']);
         }
 
@@ -65,23 +65,39 @@ class BulkWishListController extends Controller
         }
 
         $name = trim($matches[2]);
-        $foil = ! empty($matches[5]);
-        $finish = $foil ? 'foil' : 'nonfoil';
-        $query = CardPrinting::query()->whereRaw('LOWER(name) = LOWER(?)', [$name]);
-        if (! empty($matches[3])) {
-            $query->whereRaw('LOWER(set_code) = LOWER(?)', [$matches[3]])
-                ->whereRaw('LOWER(collector_number) = LOWER(?)', [$matches[4]]);
+        $marker = strtoupper($matches[5] ?? '');
+        $finish = match ($marker) {
+            'F' => 'foil',
+            'E' => 'etched',
+            default => 'nonfoil',
+        };
+        $normalizedName = preg_replace('/\s*\/{1,2}\s*/u', ' // ', $name);
+        $candidates = array_unique([$name, $normalizedName]);
+        $printing = null;
+        foreach ($candidates as $candidate) {
+            $printing = $this->findPrinting($candidate, $finish, $matches[3] ?? null, $matches[4] ?? null);
+            if ($printing) {
+                break;
+            }
         }
-        $printing = $query->orderByDesc('released_at')
-            ->orderByRaw("CASE WHEN lang = 'en' THEN 0 ELSE 1 END")->orderBy('scryfall_id')
-            ->cursor(['scryfall_id', 'oracle_id', 'name', 'tcgplayer_id', 'finishes'])
-            ->first(fn (CardPrinting $card) => $card->finishes === null || in_array($finish, $card->finishes, true));
+        if (! $printing && ! str_contains($name, '/')) {
+            $printing = $this->findPrinting($name, $finish, $matches[3] ?? null, $matches[4] ?? null, frontOnly: true);
+        }
+        if (! $printing && $marker === '') {
+            foreach (['foil', 'etched'] as $alternativeFinish) {
+                $printing = $this->findPrinting($name, $alternativeFinish, $matches[3] ?? null, $matches[4] ?? null, flavorOnly: true);
+                if ($printing) {
+                    $finish = $alternativeFinish;
+                    break;
+                }
+            }
+        }
 
         if (! $printing) {
             throw ValidationException::withMessages(['line' => 'Card, printing, or finish not found.']);
         }
 
-        return DB::transaction(function () use ($list, $request, $printing, $quantity, $foil, $finish) {
+        return DB::transaction(function () use ($list, $request, $printing, $quantity, $finish) {
             $catalogId = $printing->oracle_id ?? $printing->scryfall_id;
             $item = $list->items()->where('catalog_id', $catalogId)->lockForUpdate()->first();
 
@@ -91,7 +107,7 @@ class BulkWishListController extends Controller
                     'catalog_id' => $catalogId,
                     'scryfall_id' => $printing->scryfall_id,
                     'card_name' => $printing->name,
-                    'foil' => $foil,
+                    'foil' => $finish !== 'nonfoil',
                     'foil_preference' => $finish,
                     'any_printing' => false,
                     'total_quantity' => $quantity,
@@ -130,5 +146,28 @@ class BulkWishListController extends Controller
 
             return $item;
         });
+    }
+
+    private function findPrinting(string $name, string $finish, ?string $set, ?string $number, bool $frontOnly = false, bool $flavorOnly = false): ?CardPrinting
+    {
+        $query = CardPrinting::query()->where(function ($query) use ($name, $frontOnly, $flavorOnly) {
+            if ($frontOnly) {
+                $query->whereRaw('LOWER(front_name) = LOWER(?)', [$name]);
+            } elseif ($flavorOnly) {
+                $query->whereRaw('LOWER(flavor_name) = LOWER(?)', [$name]);
+            } else {
+                $query->whereRaw('LOWER(name) = LOWER(?)', [$name])
+                    ->orWhereRaw('LOWER(flavor_name) = LOWER(?)', [$name]);
+            }
+        });
+        if ($set !== null && $set !== '') {
+            $query->whereRaw('LOWER(set_code) = LOWER(?)', [$set])
+                ->whereRaw('LOWER(collector_number) = LOWER(?)', [$number]);
+        }
+
+        return $query->orderByDesc('released_at')
+            ->orderByRaw("CASE WHEN lang = 'en' THEN 0 ELSE 1 END")->orderBy('scryfall_id')
+            ->cursor(['scryfall_id', 'oracle_id', 'name', 'tcgplayer_id', 'finishes'])
+            ->first(fn (CardPrinting $card) => $card->finishes === null || in_array($finish, $card->finishes, true));
     }
 }

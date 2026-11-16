@@ -37,6 +37,8 @@ class ScryfallCatalogImporter
                     'scryfall_id' => $card['id'],
                     'oracle_id' => is_string($card['oracle_id'] ?? null) ? $card['oracle_id'] : null,
                     'name' => $card['name'],
+                    'front_name' => str_contains($card['name'], ' // ') ? explode(' // ', $card['name'], 2)[0] : null,
+                    'flavor_name' => is_string($card['flavor_name'] ?? null) ? $card['flavor_name'] : null,
                     'set_code' => is_string($card['set'] ?? null) ? $card['set'] : null,
                     'set_name' => is_string($card['set_name'] ?? null) ? $card['set_name'] : null,
                     'collector_number' => is_string($card['collector_number'] ?? null) ? $card['collector_number'] : null,
@@ -76,7 +78,7 @@ class ScryfallCatalogImporter
             $batch,
             ['scryfall_id'],
             [
-                'oracle_id', 'name', 'set_code', 'set_name', 'collector_number',
+                'oracle_id', 'name', 'front_name', 'flavor_name', 'set_code', 'set_name', 'collector_number',
                 'released_at', 'lang', 'tcgplayer_id', 'image_uris', 'card_faces',
                 'finishes', 'updated_at',
             ],

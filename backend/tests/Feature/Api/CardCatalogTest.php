@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class CardCatalogTest extends TestCase
@@ -88,6 +89,77 @@ class CardCatalogTest extends TestCase
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.scryfall_id', 'jsonl-two')
             ->assertJsonPath('data.1.tcgplayer_id', 12345);
+    }
+
+    public function test_bulk_add_resolves_imported_face_and_flavor_names(): void
+    {
+        $user = User::factory()->create();
+        $list = $user->wishLists()->create(['name' => 'Cards']);
+        $doubleFaced = $this->printing('delver', 'oracle-delver', 'Delver of Secrets // Insectile Aberration', '2025-01-24', finishes: ['nonfoil', 'foil']);
+        $doubleFaced['set'] = 'inr';
+        $doubleFaced['collector_number'] = '60';
+        $shrine = $this->printing('shrine', 'oracle-tower', 'Command Tower', '2025-07-14', finishes: ['foil']);
+        $shrine['flavor_name'] = 'Master Emerald Shrine';
+        $shrine['set'] = 'sld';
+        $shrine['collector_number'] = '7030';
+        $crystal = $this->printing('crystal', 'oracle-cryptic', 'Cryptic Command', '2025-06-13', finishes: ['nonfoil', 'foil']);
+        $crystal['flavor_name'] = 'To the Crystal Tower';
+        $this->import([$doubleFaced, $shrine, $crystal]);
+
+        $this->assertDatabaseHas('card_printings', [
+            'scryfall_id' => 'delver', 'front_name' => 'Delver of Secrets',
+        ]);
+        $this->assertDatabaseHas('card_printings', [
+            'scryfall_id' => 'shrine', 'flavor_name' => 'Master Emerald Shrine',
+        ]);
+
+        $url = "/api/wish-lists/{$list->id}/bulk-items";
+        $this->actingAs($user);
+        foreach (['Delver of Secrets', 'delver of secrets / insectile aberration', 'Delver of Secrets // Insectile Aberration (INR) 60'] as $line) {
+            $this->postJson($url, ['line' => $line])->assertCreated()
+                ->assertJsonPath('data.scryfall_id', 'delver');
+        }
+        $this->postJson($url, ['line' => 'Master Emerald Shrine'])->assertCreated()
+            ->assertJsonPath('data.scryfall_id', 'shrine')
+            ->assertJsonPath('data.foil_preference', 'foil');
+        $this->postJson($url, ['line' => 'To the Crystal Tower'])->assertCreated()
+            ->assertJsonPath('data.scryfall_id', 'crystal')
+            ->assertJsonPath('data.foil_preference', 'nonfoil');
+        foreach (['Master Emerald Shrine *F*', 'Command Tower (SLD) 7030 *F*', 'Master Emerald Shrine (SLD) 7030 *F*'] as $line) {
+            $this->postJson($url, ['line' => $line])->assertCreated()
+                ->assertJsonPath('data.scryfall_id', 'shrine')
+                ->assertJsonPath('data.card_name', 'Command Tower');
+        }
+        foreach (['Delver of Secret', 'Insectile Aberration', 'Delver of Secrets / Wrong Face', 'Master Emerald Shrine (SLD) 999 *F*', 'Master Emerald Shrine *E*'] as $line) {
+            $this->postJson($url, ['line' => $line])->assertUnprocessable();
+        }
+        $this->assertDatabaseCount('wish_list_items', 3);
+    }
+
+    public function test_bulk_add_prefers_an_exact_card_name_to_a_front_face_match(): void
+    {
+        $user = User::factory()->create();
+        $list = $user->wishLists()->create(['name' => 'Cards']);
+        $this->import([
+            $this->printing('single', 'single-oracle', 'Example', '2000-01-01', finishes: ['nonfoil']),
+            $this->printing('double', 'double-oracle', 'Example // Other', '2025-01-01', finishes: ['nonfoil']),
+        ]);
+        $this->actingAs($user)->postJson("/api/wish-lists/{$list->id}/bulk-items", ['line' => 'Example'])
+            ->assertCreated()->assertJsonPath('data.scryfall_id', 'single');
+    }
+
+    public function test_matching_name_migration_backfills_existing_front_names(): void
+    {
+        $migration = require database_path('migrations/2026_11_16_000002_add_bulk_matching_names.php');
+        $migration->down();
+        DB::table('card_printings')->insert([
+            'scryfall_id' => 'legacy-card', 'name' => 'Front // Back',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $migration->up();
+        $this->assertDatabaseHas('card_printings', [
+            'scryfall_id' => 'legacy-card', 'front_name' => 'Front', 'flavor_name' => null,
+        ]);
     }
 
     public function test_search_returns_one_suggestion_per_card_identity(): void

@@ -152,7 +152,7 @@ export interface WishListItem {
   scryfall_id: string;
   card_name: string;
   foil: boolean;
-  foil_preference: 'foil' | 'nonfoil' | 'either';
+  foil_preference: 'foil' | 'etched' | 'nonfoil' | 'either';
   any_printing: boolean;
   max_price_usd: string | null;
   any_printing_quantity: number;

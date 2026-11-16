@@ -7,10 +7,11 @@ interface PrintingModalProps {
   onSave: (preferences: WishListItemPreferences) => Promise<void>;
 }
 
-function singleFinish(printing: Printing | undefined): 'foil' | 'nonfoil' | undefined {
-  const hasFoil = printing?.finishes?.includes('foil');
-  const hasNonfoil = printing?.finishes?.includes('nonfoil');
-  return hasFoil === hasNonfoil ? undefined : hasFoil ? 'foil' : 'nonfoil';
+function singleFinish(printing: Printing | undefined): 'foil' | 'etched' | 'nonfoil' | undefined {
+  const finishes = printing?.finishes;
+  if (finishes?.length !== 1) return undefined;
+  const finish = finishes[0];
+  return finish === 'foil' || finish === 'etched' || finish === 'nonfoil' ? finish : undefined;
 }
 
 function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
@@ -115,6 +116,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                   <select value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
                     <option value="either">Either</option>
                     <option value="foil">Foil</option>
+                    <option value="etched">Etched foil</option>
                     <option value="nonfoil">Non-foil</option>
                   </select>
                 </label>
@@ -146,7 +148,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                         {image ? (
                           <span className="printing-artwork">
                             <img src={image} alt={label} />
-                            {(finish === 'foil' || (finish !== 'nonfoil' && selection?.foil_preference === 'foil')) && (
+                            {(finish === 'foil' || finish === 'etched' || (finish !== 'nonfoil' && (selection?.foil_preference === 'foil' || selection?.foil_preference === 'etched'))) && (
                               <span className="foil-shine" aria-hidden="true" />
                             )}
                           </span>
@@ -175,7 +177,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                           />
                           {finish ? (
                             <span className="printing-foil-selector printing-foil-fixed">
-                              {finish === 'foil' ? 'Foil only' : 'Non-foil only'}
+                              {finish === 'foil' ? 'Foil only' : finish === 'etched' ? 'Etched foil only' : 'Non-foil only'}
                             </span>
                           ) : (
                             <select
@@ -190,6 +192,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                             >
                               <option value="either">Either</option>
                               <option value="foil">Foil</option>
+                              {(printing.finishes?.includes('etched') || selection.foil_preference === 'etched') && <option value="etched">Etched foil</option>}
                               <option value="nonfoil">Non-foil</option>
                             </select>
                           )}

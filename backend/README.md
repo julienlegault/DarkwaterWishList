@@ -74,7 +74,7 @@ inventory webhooks will update. Wish list endpoints are scoped to the
 authenticated user and selected list, so users cannot access another user's
 lists or items, or access an item through a different list.
 
-Item preferences include an Any Printing `foil_preference` (`foil`, `nonfoil`, or `either`),
+Item preferences include an Any Printing `foil_preference` (`foil`, `etched`, `nonfoil`, or `either`),
 `any_printing`, an optional `max_price_usd`, and `total_quantity` (default 1).
 `selected_printings` contains Scryfall IDs, positive quantities, and individual
 `foil_preference` values for selected printings. The total is independent of
@@ -90,10 +90,18 @@ previous printing selected at quantity one. These preferences are stored only:
 inventory matching, quantity tracking, and notification delivery are not yet
 implemented.
 
-Bulk add accepts one card per line: `[quantity] card name [(set) collector-number] [*F*]`.
-Quantity defaults to one and the finish defaults to nonfoil. Without a set and
+Bulk add accepts one card per line: `[quantity] card name [(set) collector-number] [*F*|*E*]`.
+Quantity defaults to one and the finish defaults to nonfoil. `*F*` selects foil;
+`*E*` selects etched foil. For unmarked alternate printing names only, if no
+nonfoil printing is available, foil then etched is selected instead. Without a set and
 collector number, the most recent matching printing supporting that finish is
-selected. Repeated cards add to the existing total and selected printing
+selected. Double-faced cards can be entered using their front name or both
+faces separated by `/` or `//`. Exact card or printing flavor names take
+precedence over front-face matches. Printing flavor names (such as Master
+Emerald Shrine) are also accepted, and still respect the set, collector number,
+and requested finish. Refresh the catalog after applying the matching-name
+migration to populate flavor names for existing printings.
+Repeated cards add to the existing total and selected printing
 quantities. A conflicting finish for the same printing, an existing Any Printing
 selection, a missing card or printing, or an invalid quantity leaves that line
 unchanged. The modal retains failed lines for correction.

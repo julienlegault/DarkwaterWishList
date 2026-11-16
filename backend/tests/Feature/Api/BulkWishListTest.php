@@ -116,4 +116,44 @@ class BulkWishListTest extends TestCase
             ->assertJsonPath('errors.2.index', 4);
         $this->assertSame(5, $list->items()->firstOrFail()->total_quantity);
     }
+
+    public function test_etched_finish_is_distinct_and_survives_preference_updates(): void
+    {
+        $user = User::factory()->create();
+        $list = $user->wishLists()->create(['name' => 'Cards']);
+        CardPrinting::query()->create([
+            'scryfall_id' => 'etched-card', 'oracle_id' => 'oracle-etched', 'name' => 'Etched Card',
+            'set_code' => 'set', 'collector_number' => '1', 'finishes' => ['etched'],
+        ]);
+        $this->actingAs($user);
+        $url = "/api/wish-lists/{$list->id}/bulk-items";
+        $this->postJson($url, ['line' => 'Etched Card *F*'])->assertUnprocessable();
+        $this->postJson($url, ['line' => '2 Etched Card (SET) 1 *e*'])->assertCreated()
+            ->assertJsonPath('data.foil', true)
+            ->assertJsonPath('data.foil_preference', 'etched')
+            ->assertJsonPath('data.selected_printings.0.foil_preference', 'etched');
+        $item = $list->items()->firstOrFail();
+        $this->patchJson("/api/wish-lists/{$list->id}/items/{$item->id}", [
+            'foil_preference' => 'etched',
+            'selected_printings' => [['scryfall_id' => 'etched-card', 'quantity' => 2, 'foil_preference' => 'etched']],
+        ])->assertOk()->assertJsonPath('data.foil', true)
+            ->assertJsonPath('data.selected_printings.0.foil_preference', 'etched');
+        $this->postJson($url, ['line' => 'Etched Card *E*'])->assertCreated()
+            ->assertJsonPath('data.total_quantity', 3);
+        $this->postJson($url, ['lines' => ['Etched Card *E*', 'Etched Card *F*']])
+            ->assertOk()->assertJsonCount(1, 'errors')->assertJsonPath('errors.0.index', 1);
+        $this->assertSame(4, $item->refresh()->total_quantity);
+    }
+
+    public function test_unmarked_etched_only_flavor_name_uses_etched_finish(): void
+    {
+        $user = User::factory()->create();
+        $list = $user->wishLists()->create(['name' => 'Cards']);
+        CardPrinting::query()->create([
+            'scryfall_id' => 'etched-card', 'oracle_id' => 'oracle-etched', 'name' => 'Original',
+            'flavor_name' => 'Alternate', 'finishes' => ['etched'],
+        ]);
+        $this->actingAs($user)->postJson("/api/wish-lists/{$list->id}/bulk-items", ['line' => 'Alternate'])
+            ->assertCreated()->assertJsonPath('data.foil_preference', 'etched');
+    }
 }

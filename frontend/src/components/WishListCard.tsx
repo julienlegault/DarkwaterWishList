@@ -41,7 +41,7 @@ function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
                 ? item.foil_preference
                 : item.selected_printings?.find((selection) => selection.scryfall_id === id)?.foil_preference
                   ?? (item.selected_printings === null ? item.foil_preference : undefined);
-              return preference === 'foil' ? (
+              return preference === 'foil' || preference === 'etched' ? (
                 <span
                   key={id}
                   className="foil-shine"

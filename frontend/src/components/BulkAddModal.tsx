@@ -42,7 +42,7 @@ function BulkAddModal({ listId, onClose, onAdded }: {
       <div className="printing-modal bulk-add-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-add-title">
         <form onSubmit={handleSubmit}>
           <h2 id="bulk-add-title">Bulk Add</h2>
-          <p>Enter one card per line. Quantity defaults to 1; add a set and collector number to select a printing, and *F* for foil.</p>
+          <p>Enter one card per line. Quantity defaults to 1; add a set and collector number to select a printing, *F* for foil, or *E* for etched foil. Alternate names default to non-foil when available, otherwise foil or etched.</p>
           <label htmlFor="bulk-add-lines">Cards</label>
           <textarea id="bulk-add-lines" rows={12} value={text} onChange={(event) => setText(event.target.value)} disabled={saving}
             placeholder={'1 Apex Devastator (M3C) 220\n2 Barbarian Ring (ODY) 313 *F*'} />
