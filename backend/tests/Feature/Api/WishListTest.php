@@ -49,7 +49,8 @@ class WishListTest extends TestCase
             ->assertJsonPath('data.foil', false)
             ->assertJsonPath('data.in_stock', false)
             ->assertJsonPath('data.any_printing', false)
-            ->assertJsonPath('data.any_printing_quantity', 1);
+            ->assertJsonPath('data.any_printing_quantity', 1)
+            ->assertJsonPath('data.total_quantity', 1);
 
         $this->assertDatabaseHas('wish_list_items', [
             'user_id' => $user->id,
@@ -186,12 +187,19 @@ class WishListTest extends TestCase
             ->assertJsonPath('data.any_printing', true)
             ->assertJsonPath('data.max_price_usd', '12.50')
             ->assertJsonPath('data.any_printing_quantity', 4)
+            ->assertJsonPath('data.total_quantity', 4)
             ->assertJsonPath('data.selected_printings', $selections);
 
-        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['any_printing' => false])
-            ->assertOk()->assertJsonPath('data.selected_printings', $selections);
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['any_printing' => false, 'total_quantity' => 1])
+            ->assertOk()->assertJsonPath('data.selected_printings', $selections)
+            ->assertJsonPath('data.total_quantity', 1)
+            ->assertJsonPath('data.any_printing_quantity', 1);
         $this->actingAs($user)->getJson('/api/wishlist')
-            ->assertOk()->assertJsonPath('data.0.selected_printings', $selections);
+            ->assertOk()->assertJsonPath('data.0.selected_printings', $selections)
+            ->assertJsonPath('data.0.total_quantity', 1);
+        $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['total_quantity' => 10])
+            ->assertOk()->assertJsonPath('data.total_quantity', 10)
+            ->assertJsonPath('data.selected_printings', $selections);
     }
 
     public function test_item_preferences_reject_invalid_printings_quantities_and_prices(): void
@@ -209,9 +217,10 @@ class WishListTest extends TestCase
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
             'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 0]],
             'any_printing_quantity' => 0,
+            'total_quantity' => 0,
             'max_price_usd' => '1.234',
         ])->assertUnprocessable()->assertJsonValidationErrors([
-            'selected_printings.0.quantity', 'any_printing_quantity', 'max_price_usd',
+            'selected_printings.0.quantity', 'any_printing_quantity', 'total_quantity', 'max_price_usd',
         ]);
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
             'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 1, 'foil_preference' => 'invalid']],
@@ -265,6 +274,31 @@ class WishListTest extends TestCase
         $this->assertSame([
             ['scryfall_id' => 'existing-printing', 'quantity' => 2, 'foil_preference' => 'either'],
         ], $item->selected_printings);
+    }
+
+    public function test_total_quantity_migration_preserves_active_quantities(): void
+    {
+        $user = User::factory()->create();
+        $specific = WishListItem::factory()->for($user)->create([
+            'any_printing' => false,
+            'any_printing_quantity' => 9,
+            'selected_printings' => [
+                ['scryfall_id' => 'a', 'quantity' => 2],
+                ['scryfall_id' => 'b', 'quantity' => 3],
+            ],
+        ]);
+        $any = WishListItem::factory()->for($user)->create([
+            'any_printing' => true,
+            'any_printing_quantity' => 4,
+            'selected_printings' => [['scryfall_id' => 'a', 'quantity' => 2]],
+        ]);
+        $migration = require database_path('migrations/2026_11_16_000000_add_total_quantity_to_wish_list_items.php');
+        $migration->down();
+        $migration->up();
+
+        $this->assertSame(5, $specific->refresh()->total_quantity);
+        $this->assertSame(9, $specific->any_printing_quantity);
+        $this->assertSame(4, $any->refresh()->total_quantity);
     }
 
     public function test_preview_printings_follow_selection_or_most_recent_any_printings(): void

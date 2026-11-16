@@ -21,11 +21,25 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
   const [foil, setFoil] = useState<WishListItem['foil_preference']>(item.foil_preference ?? 'either');
   const [anyPrinting, setAnyPrinting] = useState(item.any_printing);
   const [price, setPrice] = useState(item.max_price_usd ?? '');
-  const [quantity, setQuantity] = useState(String(item.any_printing_quantity));
+  const [quantity, setQuantity] = useState(String(item.total_quantity));
   const [selected, setSelected] = useState(() =>
     (item.selected_printings ?? [{ scryfall_id: item.scryfall_id, quantity: 1, foil_preference: item.foil_preference ?? 'either' }])
-      .map((selection) => ({ ...selection, quantity: String(selection.quantity) })),
+      .map((selection) => ({ ...selection, quantity: String(selection.quantity), lastValidQuantity: selection.quantity })),
   );
+
+  function changePrintingQuantity(id: string, value: string) {
+    const selection = selected.find((entry) => entry.scryfall_id === id);
+    if (!selection) return;
+    const next = Number(value);
+    const valid = /^\d+$/.test(value) && next >= 1 && next <= 4294967295;
+    if (valid) {
+      const difference = next - selection.lastValidQuantity;
+      setQuantity((current) => /^-?\d+$/.test(current) ? String(Number(current) + difference) : current);
+    }
+    setSelected((current) => current.map((entry) => entry.scryfall_id === id
+      ? { ...entry, quantity: value, lastValidQuantity: valid ? next : entry.lastValidQuantity }
+      : entry));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +63,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
       return;
     }
     if (!/^\d+$/.test(quantity) || Number(quantity) < 1 || Number(quantity) > 4294967295) {
-      setError('Enter a valid quantity for Any Printing.');
+      setError('Enter a valid total quantity.');
       return;
     }
     setSaving(true);
@@ -58,9 +72,9 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
       foil_preference: foil,
       any_printing: anyPrinting,
       max_price_usd: price === '' ? null : price,
-      any_printing_quantity: Number(quantity),
+      total_quantity: Number(quantity),
       selected_printings: selected.map((selection) => ({
-        ...selection,
+        scryfall_id: selection.scryfall_id,
         quantity: Number(selection.quantity),
         foil_preference: singleFinish(printings.find((printing) => printing.scryfall_id === selection.scryfall_id))
           ?? selection.foil_preference,
@@ -90,27 +104,28 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
               <input type="checkbox" role="switch" checked={anyPrinting} onChange={(event) => setAnyPrinting(event.target.checked)} />
               Any Printing
             </label>
+            <label>
+              Total Quantity
+              <input type="number" min="1" max="4294967295" step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+            </label>
             {anyPrinting && (
               <>
-            <label>
-              Foil
-              <select value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
-                <option value="either">Either</option>
-                <option value="foil">Foil</option>
-                <option value="nonfoil">Non-foil</option>
-              </select>
-            </label>
+                <label>
+                  Foil
+                  <select value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
+                    <option value="either">Either</option>
+                    <option value="foil">Foil</option>
+                    <option value="nonfoil">Non-foil</option>
+                  </select>
+                </label>
                 <label>
                   Printings Under (USD)
                   <input type="number" min="0" max="99999999.99" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} />
                 </label>
-                <label>
-                  Quantity
-                  <input type="number" min="1" max="4294967295" step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} />
-                </label>
               </>
             )}
           </div>
+          <p>Total Quantity can differ from the quantities on individual printings.</p>
           <p>Notification delivery is not yet available. Your preferences will be saved.</p>
           {error && <p role="alert">{error}</p>}
           {loading && <p>Loading printings…</p>}
@@ -136,7 +151,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                             aria-label={`Select ${label}`}
                             checked={!!selection}
                             onChange={(event) => setSelected((current) => event.target.checked
-                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', foil_preference: finish ?? 'either' }]
+                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', lastValidQuantity: 1, foil_preference: finish ?? 'either' }]
                               : current.filter((entry) => entry.scryfall_id !== printing.scryfall_id))}
                           />
                         </span>
@@ -149,8 +164,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                             type="number" min="1" max="4294967295" step="1" required
                             placeholder="Quantity"
                             value={selection.quantity}
-                            onChange={(event) => setSelected((current) => current.map((entry) =>
-                              entry.scryfall_id === printing.scryfall_id ? { ...entry, quantity: event.target.value } : entry))}
+                            onChange={(event) => changePrintingQuantity(printing.scryfall_id, event.target.value)}
                           />
                           {finish ? (
                             <span className="printing-foil-selector printing-foil-fixed">

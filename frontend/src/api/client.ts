@@ -148,6 +148,7 @@ export interface WishListItem {
   any_printing: boolean;
   max_price_usd: string | null;
   any_printing_quantity: number;
+  total_quantity: number;
   selected_printings: PrintingSelection[] | null;
   tcgplayer_id: number | null;
   in_stock: boolean;
@@ -172,7 +173,7 @@ export interface WishListItemPreferences {
   foil_preference: WishListItem['foil_preference'];
   any_printing: boolean;
   max_price_usd: string | null;
-  any_printing_quantity: number;
+  total_quantity: number;
   selected_printings: PrintingSelection[];
   scryfall_id?: string;
 }

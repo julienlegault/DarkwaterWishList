@@ -74,11 +74,16 @@ authenticated user and selected list, so users cannot access another user's
 lists or items, or access an item through a different list.
 
 Item preferences include an Any Printing `foil_preference` (`foil`, `nonfoil`, or `either`),
-`any_printing`, an optional `max_price_usd`, and `any_printing_quantity`.
+`any_printing`, an optional `max_price_usd`, and `total_quantity` (default 1).
 `selected_printings` contains Scryfall IDs, positive quantities, and individual
-`foil_preference` values for selected printings. Item responses also include up
+`foil_preference` values for selected printings. The total is independent of
+the sum of selected printing quantities and applies in both modes. The legacy
+`any_printing_quantity` field is retained for API compatibility; updating either
+quantity field updates both. Existing specific-printing totals are initialized
+from their selected quantities; Any Printing totals retain their saved quantity.
+Item responses also include up
 to five `preview_printings`: selected printings in selection order, or the most
-recent printings when Any Printing is enabled. Any Printing uses its own quantity and price limit; specific selections
+recent printings when Any Printing is enabled. Any Printing uses its own price limit; specific selections
 are retained but inactive until it is turned off. Existing items start with their
 previous printing selected at quantity one. These preferences are stored only:
 inventory matching, quantity tracking, and notification delivery are not yet

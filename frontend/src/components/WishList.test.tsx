@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WishList from './WishList';
@@ -23,6 +23,7 @@ const boltItem: client.WishListItem = {
   any_printing: false,
   max_price_usd: null,
   any_printing_quantity: 1,
+  total_quantity: 1,
   selected_printings: [{ scryfall_id: 'printing-new', quantity: 1, foil_preference: 'nonfoil' }],
   tcgplayer_id: 123,
   in_stock: false,
@@ -62,6 +63,7 @@ describe('WishList', () => {
     renderWishList();
 
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
+    expect(screen.getByText('Quantity requested: 1')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Lightning Bolt' }).querySelector('img')).toHaveAttribute(
       'src',
       'https://cards.example/bolt-new.jpg',
@@ -90,7 +92,7 @@ describe('WishList', () => {
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /change printing/i }));
     await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
-    expect(screen.getByLabelText('Quantity')).toHaveValue(1);
+    expect(screen.getByLabelText('Total Quantity')).toHaveValue(1);
   });
 
   it('removes an item from the wish list', async () => {
@@ -151,7 +153,7 @@ describe('WishList', () => {
         foil_preference: 'nonfoil',
         any_printing: false,
         max_price_usd: null,
-        any_printing_quantity: 1,
+        total_quantity: 3,
         selected_printings: [
           { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
           { scryfall_id: 'printing-old', quantity: 3, foil_preference: 'either' },
@@ -163,6 +165,67 @@ describe('WishList', () => {
     expect(images).toHaveLength(2);
     expect(images[0]).toHaveStyle({ clipPath: 'inset(0 50% 0 0%)' });
     expect(images[1]).toHaveStyle({ clipPath: 'inset(0 0% 0 50%)' });
+  });
+
+  it.each([1, 10])('saves and displays a total of %i for three selected printings', async (total) => {
+    const user = userEvent.setup();
+    const second = { ...boltItem.printing!, scryfall_id: 'second', set_name: 'Second' };
+    const third = { ...boltItem.printing!, scryfall_id: 'third', set_name: 'Third' };
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!, second, third] });
+    vi.mocked(client.updateWishListItem).mockImplementation(async (_listId, _id, preferences) => ({
+      data: { ...boltItem, ...preferences, preview_printings: [boltItem.printing!, second, third] },
+    }));
+
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(await within(dialog).findByRole('checkbox', { name: /select second/i }));
+    await user.click(within(dialog).getByRole('checkbox', { name: /select third/i }));
+    const quantity = within(dialog).getByLabelText('Total Quantity');
+    expect(quantity).toHaveValue(1);
+    if (total !== 1) {
+      await user.clear(quantity);
+      await user.type(quantity, String(total));
+    }
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
+      total_quantity: total,
+      selected_printings: expect.arrayContaining([
+        expect.objectContaining({ scryfall_id: 'printing-new', quantity: 1 }),
+        expect.objectContaining({ scryfall_id: 'second', quantity: 1 }),
+        expect.objectContaining({ scryfall_id: 'third', quantity: 1 }),
+      ]),
+    })));
+    expect(screen.getByText(`Quantity requested: ${total}`)).toBeInTheDocument();
+  });
+
+  it('adjusts the independently edited total by the change in a printing quantity', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const total = screen.getByLabelText('Total Quantity');
+    const printingQuantity = await screen.findByLabelText(/quantity for masters 25/i);
+
+    await user.clear(printingQuantity);
+    expect(total).toHaveValue(1);
+    await user.type(printingQuantity, '3');
+    expect(total).toHaveValue(3);
+    await user.clear(total);
+    await user.type(total, '10');
+    await user.clear(printingQuantity);
+    await user.type(printingQuantity, '2');
+    expect(total).toHaveValue(9);
+
+    fireEvent.change(total, { target: { value: '1' } });
+    fireEvent.change(printingQuantity, { target: { value: '1' } });
+    expect(total).toHaveValue(0);
+    expect(total).toBeInvalid();
+    fireEvent.change(printingQuantity, { target: { value: '2' } });
+    expect(total).toHaveValue(1);
   });
 
   it('displays and saves the available finish for single-finish printings', async () => {
@@ -233,7 +296,7 @@ describe('WishList', () => {
     expect(quantity).toHaveValue(3);
 
     await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
-    expect(within(dialog).getByLabelText('Quantity')).toHaveValue(1);
+    expect(within(dialog).getByLabelText('Total Quantity')).toHaveValue(3);
     await user.click(image);
     expect(checkbox).toBeChecked();
   });
@@ -259,12 +322,12 @@ describe('WishList', () => {
     expect(within(dialog).queryByLabelText(/printings under/i)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
     await user.type(within(dialog).getByLabelText(/printings under/i), '12.50');
-    const quantity = within(dialog).getByLabelText('Quantity');
+    const quantity = within(dialog).getByLabelText('Total Quantity');
     await user.clear(quantity);
     await user.type(quantity, '4');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, {
-      foil_preference: 'either', any_printing: true, max_price_usd: '12.5', any_printing_quantity: 4,
+      foil_preference: 'either', any_printing: true, max_price_usd: '12.5', total_quantity: 4,
       selected_printings: [{ scryfall_id: 'printing-new', quantity: 1, foil_preference: 'nonfoil' }],
     }));
   });
@@ -300,16 +363,16 @@ describe('WishList', () => {
   it('retains the saved quantity when reopening Any Printing preferences', async () => {
     const user = userEvent.setup();
     vi.mocked(client.getWishList).mockResolvedValue({
-      data: [{ ...boltItem, any_printing: true, any_printing_quantity: 4 }],
+      data: [{ ...boltItem, any_printing: true, any_printing_quantity: 4, total_quantity: 4 }],
     });
     vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
     renderWishList();
 
     await user.click(await screen.findByRole('button', { name: /change printing/i }));
-    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+    expect(screen.getByLabelText('Total Quantity')).toHaveValue(4);
     await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
     await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
-    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+    expect(screen.getByLabelText('Total Quantity')).toHaveValue(4);
   });
 
   it('shows at most five preview slices when Any Printing is selected', async () => {

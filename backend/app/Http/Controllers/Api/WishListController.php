@@ -113,6 +113,7 @@ class WishListController extends Controller
             'any_printing' => ['sometimes', 'boolean'],
             'max_price_usd' => ['sometimes', 'nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
             'any_printing_quantity' => ['sometimes', 'integer', 'min:1', 'max:4294967295'],
+            'total_quantity' => ['sometimes', 'integer', 'min:1', 'max:4294967295'],
             'selected_printings' => ['sometimes', 'array'],
             'selected_printings.*.scryfall_id' => ['required', 'string', 'distinct', Rule::exists('card_printings', 'scryfall_id')],
             'selected_printings.*.quantity' => ['required', 'integer', 'min:1', 'max:4294967295'],
@@ -183,7 +184,12 @@ class WishListController extends Controller
                 $item->selected_printings = $selections;
             }
         }
-        foreach (['any_printing', 'max_price_usd', 'any_printing_quantity', 'selected_printings'] as $field) {
+        if (array_key_exists('total_quantity', $validated)) {
+            $validated['any_printing_quantity'] = $validated['total_quantity'];
+        } elseif (array_key_exists('any_printing_quantity', $validated)) {
+            $validated['total_quantity'] = $validated['any_printing_quantity'];
+        }
+        foreach (['any_printing', 'max_price_usd', 'any_printing_quantity', 'total_quantity', 'selected_printings'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $item->$field = $validated[$field];
             }

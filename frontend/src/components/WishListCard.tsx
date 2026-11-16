@@ -41,6 +41,7 @@ function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
         )}
       </button>
       <p className="wish-list-card-name">{item.card_name}</p>
+      <p>Quantity requested: {item.total_quantity}</p>
       <p className="wish-list-card-stock">
         {item.in_stock ? 'In stock at Darkwater' : 'Not currently in stock'}
       </p>

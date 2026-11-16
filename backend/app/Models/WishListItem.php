@@ -20,6 +20,7 @@ class WishListItem extends Model
             'any_printing' => 'boolean',
             'max_price_usd' => 'decimal:2',
             'any_printing_quantity' => 'integer',
+            'total_quantity' => 'integer',
             'selected_printings' => 'array',
         ];
     }
