@@ -74,6 +74,20 @@ describe('WishList', () => {
     );
   });
 
+  it('indicates stock status with a border and accessible text', () => {
+    const { rerender } = render(<WishListCard item={boltItem} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
+    const card = screen.getByRole('listitem');
+    expect(card).toHaveClass('wish-list-card-out-of-stock');
+    expect(card).toHaveAttribute('title', 'Not currently in stock');
+    expect(screen.getByText('Not currently in stock')).toHaveClass('visually-hidden');
+
+    rerender(<WishListCard item={{ ...boltItem, in_stock: true }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
+    expect(card).toHaveClass('wish-list-card-in-stock');
+    expect(card).not.toHaveClass('wish-list-card-out-of-stock');
+    expect(card).toHaveAttribute('title', 'In stock at Darkwater');
+    expect(screen.getByText('In stock at Darkwater')).toHaveClass('visually-hidden');
+  });
+
   it('shows foil shine only on the matching visible printing stripes', () => {
     const item: client.WishListItem = {
       ...boltItem,

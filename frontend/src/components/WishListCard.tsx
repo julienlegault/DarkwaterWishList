@@ -13,13 +13,14 @@ interface WishListCardProps {
  * modal.
  */
 function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
+  const stockStatus = item.in_stock ? 'In stock at Darkwater' : 'Not currently in stock';
   const images = item.preview_printings.map((printing) => ({
     id: printing.scryfall_id,
     image: printing.image_uris?.normal ?? printing.card_faces?.[0]?.image_uris?.normal ?? null,
   })).filter((printing): printing is { id: string; image: string } => printing.image !== null).slice(0, 5);
 
   return (
-    <li className="wish-list-card">
+    <li className={`wish-list-card ${item.in_stock ? 'wish-list-card-in-stock' : 'wish-list-card-out-of-stock'}`} title={stockStatus}>
       <button
         type="button"
         className="wish-list-card-image"
@@ -57,9 +58,7 @@ function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
       </button>
       <p className="wish-list-card-name">{item.card_name}</p>
       <p>Quantity requested: {item.total_quantity}</p>
-      <p className="wish-list-card-stock">
-        {item.in_stock ? 'In stock at Darkwater' : 'Not currently in stock'}
-      </p>
+      <span className="visually-hidden">{stockStatus}</span>
       <button
         type="button"
         onClick={onRemove}
