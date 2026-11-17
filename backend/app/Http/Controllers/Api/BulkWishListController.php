@@ -112,7 +112,7 @@ class BulkWishListController extends Controller
                     'any_printing' => false,
                     'total_quantity' => $quantity,
                     'any_printing_quantity' => $quantity,
-                    'selected_printings' => [['scryfall_id' => $printing->scryfall_id, 'quantity' => $quantity, 'foil_preference' => $finish]],
+                    'selected_printings' => [['scryfall_id' => $printing->scryfall_id, 'quantity' => $quantity, 'foil_preference' => $finish, 'conditions' => WishListItem::CONDITIONS]],
                     'tcgplayer_id' => $printing->tcgplayer_id,
                     'in_stock' => false,
                 ]);
@@ -125,6 +125,7 @@ class BulkWishListController extends Controller
                 'scryfall_id' => $item->scryfall_id,
                 'quantity' => 1,
                 'foil_preference' => $item->foil_preference,
+                'conditions' => WishListItem::CONDITIONS,
             ]];
             $index = array_search($printing->scryfall_id, array_column($selections, 'scryfall_id'), true);
             if ($index !== false && ($selections[$index]['foil_preference'] ?? $item->foil_preference) !== $finish) {
@@ -135,7 +136,7 @@ class BulkWishListController extends Controller
                 throw ValidationException::withMessages(['line' => 'The combined quantity is too large.']);
             }
             if ($index === false) {
-                $selections[] = ['scryfall_id' => $printing->scryfall_id, 'quantity' => $quantity, 'foil_preference' => $finish];
+                $selections[] = ['scryfall_id' => $printing->scryfall_id, 'quantity' => $quantity, 'foil_preference' => $finish, 'conditions' => WishListItem::CONDITIONS];
             } else {
                 $selections[$index]['quantity'] += $quantity;
             }

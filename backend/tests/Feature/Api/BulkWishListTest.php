@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\CardPrinting;
 use App\Models\User;
+use App\Models\WishListItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -42,7 +43,9 @@ class BulkWishListTest extends TestCase
         ]);
         $this->actingAs($user);
         $this->postJson($url, ['line' => '1 Apex Devastator (M3C) 220'])->assertCreated()
-            ->assertJsonPath('data.total_quantity', 1)->assertJsonPath('data.selected_printings.0.foil_preference', 'nonfoil');
+            ->assertJsonPath('data.total_quantity', 1)->assertJsonPath('data.selected_printings.0.foil_preference', 'nonfoil')
+            ->assertJsonPath('data.conditions', WishListItem::CONDITIONS)
+            ->assertJsonPath('data.selected_printings.0.conditions', WishListItem::CONDITIONS);
         $this->postJson($url, ['line' => '2 Barbarian Ring (ODY) 313 *F*'])->assertCreated()
             ->assertJsonPath('data.total_quantity', 2)->assertJsonPath('data.selected_printings.0.foil_preference', 'foil');
         $this->postJson($url, ['line' => '1 Bazaar Trader (WWK) 72 *F*'])->assertCreated()
@@ -50,6 +53,7 @@ class BulkWishListTest extends TestCase
         $this->postJson($url, ['line' => '3 barbarian ring (other) 5A'])->assertCreated()
             ->assertJsonPath('data.total_quantity', 5)
             ->assertJsonPath('data.selected_printings.1.quantity', 3)
+            ->assertJsonPath('data.selected_printings.1.conditions', WishListItem::CONDITIONS)
             ->assertJsonCount(2, 'data.preview_printings');
         $this->postJson($url, ['line' => '1 Barbarian Ring (ODY) 313 *f*'])->assertCreated()
             ->assertJsonPath('data.total_quantity', 6)->assertJsonPath('data.selected_printings.0.quantity', 3);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CardPrinting;
 use App\Models\WishList;
+use App\Models\WishListItem;
 use App\Services\WishListPreviewPrintings;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -57,6 +58,9 @@ class WishListController extends Controller
 
         $printing = CardPrinting::query()->findOrFail($validated['scryfall_id']);
         $catalogId = $printing->oracle_id ?? $printing->scryfall_id;
+        $existing = $list->items()->where('catalog_id', $catalogId)->first();
+        $conditions = collect($existing?->selected_printings ?? [])->firstWhere('scryfall_id', $printing->scryfall_id)['conditions']
+            ?? WishListItem::CONDITIONS;
 
         $item = $list->items()->updateOrCreate(
             ['catalog_id' => $catalogId],
@@ -65,7 +69,7 @@ class WishListController extends Controller
                 'card_name' => $printing->name,
                 'foil' => $validated['foil'] ?? false,
                 'foil_preference' => ($validated['foil'] ?? false) ? 'foil' : 'nonfoil',
-                'selected_printings' => [['scryfall_id' => $printing->scryfall_id, 'quantity' => 1, 'foil_preference' => ($validated['foil'] ?? false) ? 'foil' : 'nonfoil']],
+                'selected_printings' => [['scryfall_id' => $printing->scryfall_id, 'quantity' => 1, 'foil_preference' => ($validated['foil'] ?? false) ? 'foil' : 'nonfoil', 'conditions' => $conditions]],
                 'tcgplayer_id' => $printing->tcgplayer_id,
                 'in_stock' => false,
                 'user_id' => $request->user()->id,
@@ -91,10 +95,18 @@ class WishListController extends Controller
             'max_price_usd' => ['sometimes', 'nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
             'any_printing_quantity' => ['sometimes', 'integer', 'min:1', 'max:4294967295'],
             'total_quantity' => ['sometimes', 'integer', 'min:1', 'max:4294967295'],
+            'conditions' => ['sometimes', 'array', 'list'],
+            'conditions.*' => ['required', 'string', 'distinct', Rule::in(WishListItem::CONDITIONS)],
             'selected_printings' => ['sometimes', 'array'],
             'selected_printings.*.scryfall_id' => ['required', 'string', 'distinct', Rule::exists('card_printings', 'scryfall_id')],
             'selected_printings.*.quantity' => ['required', 'integer', 'min:1', 'max:4294967295'],
             'selected_printings.*.foil_preference' => ['sometimes', Rule::in(['foil', 'etched', 'nonfoil', 'any'])],
+            'selected_printings.*.conditions' => ['sometimes', 'array', 'list', function (string $attribute, mixed $value, \Closure $fail) {
+                if (is_array($value) && count(array_unique($value, SORT_REGULAR)) !== count($value)) {
+                    $fail("The $attribute field must not contain duplicate conditions.");
+                }
+            }],
+            'selected_printings.*.conditions.*' => ['required', 'string', Rule::in(WishListItem::CONDITIONS)],
         ]);
 
         if (isset($validated['selected_printings'])) {
@@ -129,7 +141,9 @@ class WishListController extends Controller
             $item->tcgplayer_id = $printing->tcgplayer_id;
             $item->in_stock = false;
             if (! array_key_exists('selected_printings', $validated)) {
-                $item->selected_printings = [['scryfall_id' => $printing->scryfall_id, 'quantity' => 1, 'foil_preference' => $item->foil_preference]];
+                $conditions = collect($item->selected_printings ?? [])->firstWhere('scryfall_id', $printing->scryfall_id)['conditions']
+                    ?? WishListItem::CONDITIONS;
+                $item->selected_printings = [['scryfall_id' => $printing->scryfall_id, 'quantity' => 1, 'foil_preference' => $item->foil_preference, 'conditions' => $conditions]];
             }
         }
 
@@ -148,6 +162,8 @@ class WishListController extends Controller
             $validated['selected_printings'] = array_map(function ($selection) use ($item, $oldSelections) {
                 $selection['foil_preference'] ??= $oldSelections->get($selection['scryfall_id'])['foil_preference']
                     ?? $item->foil_preference;
+                $selection['conditions'] ??= $oldSelections->get($selection['scryfall_id'])['conditions']
+                    ?? WishListItem::CONDITIONS;
 
                 return $selection;
             }, $validated['selected_printings']);
@@ -166,7 +182,7 @@ class WishListController extends Controller
         } elseif (array_key_exists('any_printing_quantity', $validated)) {
             $validated['total_quantity'] = $validated['any_printing_quantity'];
         }
-        foreach (['any_printing', 'max_price_usd', 'any_printing_quantity', 'total_quantity', 'selected_printings'] as $field) {
+        foreach (['any_printing', 'max_price_usd', 'any_printing_quantity', 'total_quantity', 'selected_printings', 'conditions'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $item->$field = $validated[$field];
             }

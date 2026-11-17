@@ -220,8 +220,8 @@ class WishListTest extends TestCase
             'scryfall_id' => 'printing-a',
         ]);
         $selections = [
-            ['scryfall_id' => 'printing-a', 'quantity' => 2, 'foil_preference' => 'foil'],
-            ['scryfall_id' => 'printing-b', 'quantity' => 3, 'foil_preference' => 'nonfoil'],
+            ['scryfall_id' => 'printing-a', 'quantity' => 2, 'foil_preference' => 'foil', 'conditions' => WishListItem::CONDITIONS],
+            ['scryfall_id' => 'printing-b', 'quantity' => 3, 'foil_preference' => 'nonfoil', 'conditions' => WishListItem::CONDITIONS],
         ];
 
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
@@ -291,6 +291,62 @@ class WishListTest extends TestCase
             ->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'any');
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['foil' => true])
             ->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'foil');
+    }
+
+    public function test_conditions_are_saved_validated_and_matched_by_active_printing_mode(): void
+    {
+        $user = User::factory()->create();
+        $this->createPrinting('printing-a', 'oracle-a', 'Card A', 1);
+        $this->createPrinting('printing-b', 'oracle-a', 'Card A', 2);
+        $response = $this->actingAs($user)->postJson('/api/wishlist', ['scryfall_id' => 'printing-a'])
+            ->assertCreated()->assertJsonPath('data.conditions', WishListItem::CONDITIONS)
+            ->assertJsonPath('data.selected_printings.0.conditions', WishListItem::CONDITIONS);
+        $item = WishListItem::findOrFail($response->json('data.id'));
+        $selections = [
+            ['scryfall_id' => 'printing-a', 'quantity' => 1, 'conditions' => ['near_mint', 'light_play']],
+            ['scryfall_id' => 'printing-b', 'quantity' => 1, 'conditions' => ['near_mint']],
+        ];
+        $this->patchJson("/api/wishlist/{$item->id}", [
+            'conditions' => ['damaged'], 'selected_printings' => $selections,
+        ])->assertOk()->assertJsonPath('data.conditions', ['damaged'])
+            ->assertJsonPath('data.selected_printings.0.conditions', ['near_mint', 'light_play']);
+        $item->refresh();
+        $this->assertTrue($item->matchesCondition('printing-a', 'light_play'));
+        $this->assertFalse($item->matchesCondition('printing-b', 'light_play'));
+        $this->assertFalse($item->matchesCondition('printing-c', 'near_mint'));
+        $this->assertFalse($item->matchesCondition('printing-a', 'unknown'));
+        $this->patchJson("/api/wishlist/{$item->id}", [
+            'any_printing' => true,
+            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 2]],
+        ])->assertOk()->assertJsonPath('data.selected_printings.0.conditions', ['near_mint', 'light_play']);
+        $item->refresh();
+        $this->assertTrue($item->matchesCondition('printing-b', 'damaged'));
+        $this->assertFalse($item->matchesCondition('printing-a', 'near_mint'));
+        $this->patchJson("/api/wishlist/{$item->id}", ['conditions' => []])->assertOk();
+        $this->assertFalse($item->refresh()->matchesCondition('printing-a', 'damaged'));
+        $this->patchJson("/api/wishlist/{$item->id}", ['scryfall_id' => 'printing-a'])
+            ->assertOk()->assertJsonPath('data.selected_printings.0.conditions', ['near_mint', 'light_play']);
+        $this->postJson('/api/wishlist', ['scryfall_id' => 'printing-a'])
+            ->assertCreated()->assertJsonPath('data.selected_printings.0.conditions', ['near_mint', 'light_play'])
+            ->assertJsonPath('data.conditions', []);
+        $this->patchJson("/api/wishlist/{$item->id}", ['conditions' => ['invalid']])
+            ->assertUnprocessable()->assertJsonValidationErrors('conditions.0');
+        $this->patchJson("/api/wishlist/{$item->id}", [
+            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 1, 'conditions' => ['near_mint', 'near_mint']]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('selected_printings.0.conditions');
+    }
+
+    public function test_condition_migration_defaults_existing_items_and_printings(): void
+    {
+        $item = WishListItem::factory()->for(User::factory()->create())->create([
+            'selected_printings' => [['scryfall_id' => 'a', 'quantity' => 1]],
+        ]);
+        $migration = require database_path('migrations/2026_11_17_000000_add_wish_list_conditions.php');
+        $migration->down();
+        $migration->up();
+        $item->refresh();
+        $this->assertSame(WishListItem::CONDITIONS, $item->conditions);
+        $this->assertSame(WishListItem::CONDITIONS, $item->selected_printings[0]['conditions']);
     }
 
     public function test_preferences_migration_preserves_existing_foil_and_printing(): void

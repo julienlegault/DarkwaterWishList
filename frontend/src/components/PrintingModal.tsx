@@ -1,5 +1,98 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { getPrintings, type Printing, type WishListItem, type WishListItemPreferences } from '../api/client';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { CARD_CONDITIONS, getPrintings, type CardCondition, type Printing, type WishListItem, type WishListItemPreferences } from '../api/client';
+
+const conditionLabels: Record<CardCondition, string> = {
+  near_mint: 'Near Mint',
+  light_play: 'Light Play',
+  moderate_play: 'Moderate Play',
+  heavy_play: 'Heavy Play',
+  damaged: 'Damaged',
+};
+
+function ConditionSelector({ label, value, onChange, disabled = false, className = '' }: {
+  label: string;
+  value: CardCondition[];
+  onChange: (conditions: CardCondition[]) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const pointerDownInside = useRef(false);
+  const menuId = useId();
+  const isOpen = open && !disabled;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handlePointerDown(event: PointerEvent) {
+      pointerDownInside.current = event.target instanceof Node && !!containerRef.current?.contains(event.target);
+      if (!pointerDownInside.current) setOpen(false);
+    }
+    function handlePointerUp(event: PointerEvent) {
+      if (pointerDownInside.current && event.target instanceof Node && !containerRef.current?.contains(event.target)) setOpen(false);
+      pointerDownInside.current = false;
+    }
+    function handlePointerCancel() {
+      pointerDownInside.current = false;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerCancel);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('pointercancel', handlePointerCancel);
+      document.removeEventListener('keydown', handleKeyDown);
+      pointerDownInside.current = false;
+    };
+  }, [isOpen]);
+
+  return (
+    <div className={`condition-selector ${className}`} ref={containerRef}
+      onBlur={(event) => {
+        // A label click can blur the trigger before the checkbox receives its click.
+        if (!pointerDownInside.current && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        className="preference-select condition-selector-trigger"
+        aria-label={`Conditions for ${label}`}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? menuId : undefined}
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {value.length === CARD_CONDITIONS.length ? 'All' : value.length === 0 ? 'None' : `${value.length} selected`}
+      </button>
+      {isOpen && (
+        <div id={menuId} className="condition-selector-menu" role="group" aria-label={`Conditions for ${label}`}>
+          {CARD_CONDITIONS.map((condition) => (
+            <label key={condition}>
+              <input
+                type="checkbox"
+                checked={value.includes(condition)}
+                onChange={(event) => onChange(event.target.checked
+                  ? CARD_CONDITIONS.filter((option) => option === condition || value.includes(option))
+                  : value.filter((option) => option !== condition))}
+              />
+              {conditionLabels[condition]}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PrintingModalProps {
   item: WishListItem;
@@ -23,11 +116,12 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
     item.any_printing ? item.foil_preference : 'any',
   );
   const [anyPrinting, setAnyPrinting] = useState(item.any_printing);
+  const [conditions, setConditions] = useState<CardCondition[]>(item.conditions ?? [...CARD_CONDITIONS]);
   const [price, setPrice] = useState(item.max_price_usd ?? '');
   const [quantity, setQuantity] = useState(String(item.total_quantity));
   const [selected, setSelected] = useState(() =>
     (item.selected_printings ?? [{ scryfall_id: item.scryfall_id, quantity: 1, foil_preference: item.foil_preference ?? 'any' }])
-      .map((selection) => ({ ...selection, quantity: String(selection.quantity), lastValidQuantity: selection.quantity })),
+      .map((selection) => ({ ...selection, conditions: selection.conditions ?? [...CARD_CONDITIONS], quantity: String(selection.quantity), lastValidQuantity: selection.quantity })),
   );
 
   function changePrintingQuantity(id: string, value: string) {
@@ -76,11 +170,13 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
       any_printing: anyPrinting,
       max_price_usd: price === '' ? null : price,
       total_quantity: Number(quantity),
+      conditions,
       selected_printings: selected.map((selection) => ({
         scryfall_id: selection.scryfall_id,
         quantity: Number(selection.quantity),
         foil_preference: singleFinish(printings.find((printing) => printing.scryfall_id === selection.scryfall_id))
           ?? selection.foil_preference,
+        conditions: selection.conditions,
       })),
     };
     if (!anyPrinting && selected.length > 0 && !selected.some((selection) => selection.scryfall_id === item.scryfall_id)) {
@@ -115,13 +211,17 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
               <>
                 <label>
                   Foil
-                  <select value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
+                  <select className="preference-select" value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
                     <option value="any">Any</option>
                     <option value="foil">Foil</option>
                     <option value="etched">Etched foil</option>
                     <option value="nonfoil">Non-foil</option>
                   </select>
                 </label>
+                <div className="printing-condition-setting">
+                  <span>Conditions</span>
+                  <ConditionSelector label="Any Printing" value={conditions} onChange={setConditions} disabled={saving} />
+                </div>
                 <label>
                   Printings Under (USD)
                   <input type="number" min="0" max="99999999.99" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} />
@@ -162,7 +262,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                             aria-label={`Select ${label}`}
                             checked={!!selection}
                             onChange={(event) => setSelected((current) => event.target.checked
-                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', lastValidQuantity: 1, foil_preference: finish ?? 'any' }]
+                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', lastValidQuantity: 1, foil_preference: finish ?? 'any', conditions: [...CARD_CONDITIONS] }]
                               : current.filter((entry) => entry.scryfall_id !== printing.scryfall_id))}
                           />
                         </span>
@@ -183,7 +283,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                             </span>
                           ) : (
                             <select
-                              className="printing-foil-selector"
+                              className="printing-foil-selector preference-select"
                               aria-label={`Foil for ${label}`}
                               value={selection.foil_preference}
                               onChange={(event) => {
@@ -198,6 +298,11 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                               <option value="nonfoil">Non-foil</option>
                             </select>
                           )}
+                          <ConditionSelector className="printing-condition-selector" label={label} value={selection.conditions}
+                            disabled={anyPrinting || saving}
+                            onChange={(conditions) => setSelected((current) => current.map((entry) =>
+                              entry.scryfall_id === printing.scryfall_id ? { ...entry, conditions } : entry))}
+                          />
                         </>
                       )}
                     </div>

@@ -361,9 +361,10 @@ describe('WishList', () => {
         any_printing: false,
         max_price_usd: null,
         total_quantity: 3,
+        conditions: [...client.CARD_CONDITIONS],
         selected_printings: [
-          { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
-          { scryfall_id: 'printing-old', quantity: 3, foil_preference: 'any' },
+          { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil', conditions: [...client.CARD_CONDITIONS] },
+          { scryfall_id: 'printing-old', quantity: 3, foil_preference: 'any', conditions: [...client.CARD_CONDITIONS] },
         ],
       }),
     );
@@ -476,10 +477,10 @@ describe('WishList', () => {
 
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       selected_printings: [
-        { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
-        { scryfall_id: 'nonfoil-only', quantity: 1, foil_preference: 'nonfoil' },
-        { scryfall_id: 'foil-only', quantity: 1, foil_preference: 'foil' },
-        { scryfall_id: 'unknown-finish', quantity: 1, foil_preference: 'any' },
+        { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil', conditions: [...client.CARD_CONDITIONS] },
+        { scryfall_id: 'nonfoil-only', quantity: 1, foil_preference: 'nonfoil', conditions: [...client.CARD_CONDITIONS] },
+        { scryfall_id: 'foil-only', quantity: 1, foil_preference: 'foil', conditions: [...client.CARD_CONDITIONS] },
+        { scryfall_id: 'unknown-finish', quantity: 1, foil_preference: 'any', conditions: [...client.CARD_CONDITIONS] },
       ],
     })));
   });
@@ -509,8 +510,8 @@ describe('WishList', () => {
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       foil_preference: 'etched',
       selected_printings: [
-        { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'etched' },
-        { scryfall_id: 'etched-only', quantity: 1, foil_preference: 'etched' },
+        { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'etched', conditions: [...client.CARD_CONDITIONS] },
+        { scryfall_id: 'etched-only', quantity: 1, foil_preference: 'etched', conditions: [...client.CARD_CONDITIONS] },
       ],
     })));
   });
@@ -573,7 +574,8 @@ describe('WishList', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, {
       foil_preference: 'any', any_printing: true, max_price_usd: '12.5', total_quantity: 4,
-      selected_printings: [{ scryfall_id: 'printing-new', quantity: 1, foil_preference: 'nonfoil' }],
+      conditions: [...client.CARD_CONDITIONS],
+      selected_printings: [{ scryfall_id: 'printing-new', quantity: 1, foil_preference: 'nonfoil', conditions: [...client.CARD_CONDITIONS] }],
     }));
   });
 
@@ -599,10 +601,113 @@ describe('WishList', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       scryfall_id: 'printing-old',
-      selected_printings: [{ scryfall_id: 'printing-old', quantity: 1, foil_preference: 'any' }],
+      selected_printings: [{ scryfall_id: 'printing-old', quantity: 1, foil_preference: 'any', conditions: [...client.CARD_CONDITIONS] }],
     })));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Lightning Bolt' }).querySelector('img')).toHaveAttribute('src', 'https://cards.example/old.jpg');
+  });
+
+  it('saves independent condition choices for any printing and individual printings', async () => {
+    const user = userEvent.setup();
+    const alternate = { ...boltItem.printing!, scryfall_id: 'printing-old', set_name: 'Alpha' };
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!, alternate] });
+    vi.mocked(client.updateWishListItem).mockImplementation(async (_list, _id, preferences) => ({
+      data: { ...boltItem, ...preferences },
+    }));
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const dialog = screen.getByRole('dialog');
+    const firstTrigger = await within(dialog).findByRole('button', { name: 'Conditions for Masters 25 #142' });
+    expect(firstTrigger).toHaveTextContent('All');
+    expect(firstTrigger.closest('.printing-option-image')).toContainElement(within(dialog).getByLabelText(/foil for masters 25/i));
+    await user.click(firstTrigger);
+    const first = within(dialog).getByRole('group', { name: 'Conditions for Masters 25 #142' });
+    expect(within(first).getAllByRole('checkbox', { checked: true })).toHaveLength(5);
+    await user.click(within(first).getByRole('checkbox', { name: 'Damaged' }));
+    await user.click(within(dialog).getByRole('checkbox', { name: /select alpha/i }));
+    await user.click(within(dialog).getByRole('button', { name: 'Conditions for Alpha #142' }));
+    const second = within(dialog).getByRole('group', { name: 'Conditions for Alpha #142' });
+    await user.click(within(second).getByRole('checkbox', { name: 'Near Mint' }));
+    await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
+    const anyTrigger = within(dialog).getByRole('button', { name: 'Conditions for Any Printing' });
+    expect(within(dialog).getByRole('combobox', { name: 'Foil' }).closest('label')?.nextElementSibling).toContainElement(anyTrigger);
+    await user.click(anyTrigger);
+    const any = within(dialog).getByRole('group', { name: 'Conditions for Any Printing' });
+    for (const checkbox of within(any).getAllByRole('checkbox')) await user.click(checkbox);
+    await user.click(within(any).getByRole('checkbox', { name: 'Heavy Play' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
+      conditions: ['heavy_play'],
+      selected_printings: [
+        expect.objectContaining({ scryfall_id: 'printing-new', conditions: ['near_mint', 'light_play', 'moderate_play', 'heavy_play'] }),
+        expect.objectContaining({ scryfall_id: 'printing-old', conditions: ['light_play', 'moderate_play', 'heavy_play', 'damaged'] }),
+      ],
+    })));
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    await user.click(screen.getByRole('button', { name: 'Conditions for Any Printing' }));
+    expect(within(screen.getByRole('group', { name: 'Conditions for Any Printing' })).getByRole('checkbox', { name: 'Heavy Play' })).toBeChecked();
+    await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
+    await user.click(screen.getByRole('button', { name: 'Conditions for Masters 25 #142' }));
+    expect(within(screen.getByRole('group', { name: 'Conditions for Masters 25 #142' })).getByRole('checkbox', { name: 'Damaged' })).not.toBeChecked();
+  });
+
+  it('closes condition menus on Escape or an outside click without changing the printing selection', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const trigger = await screen.findByRole('button', { name: 'Conditions for Masters 25 #142' });
+    const printing = screen.getByRole('checkbox', { name: /select masters 25/i });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await user.click(screen.getByRole('checkbox', { name: 'Damaged' }));
+    expect(printing).toBeChecked();
+    expect(trigger).toHaveTextContent('4 selected');
+    await user.keyboard('{Escape}');
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('group', { name: 'Conditions for Masters 25 #142' })).not.toBeInTheDocument();
+    await user.click(trigger);
+    await user.click(screen.getByLabelText('Total Quantity'));
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
+    expect(trigger).toBeDisabled();
+  });
+
+  it('toggles conditions by clicking their labels or checkboxes in both printing modes', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
+    renderWishList();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const trigger = await screen.findByRole('button', { name: 'Conditions for Masters 25 #142' });
+    await user.click(trigger);
+
+    let group = screen.getByRole('group', { name: 'Conditions for Masters 25 #142' });
+    let checkbox = within(group).getByRole('checkbox', { name: 'Near Mint' });
+    const label = within(group).getByText('Near Mint');
+    fireEvent.pointerDown(label);
+    fireEvent.blur(trigger, { relatedTarget: document.body });
+    fireEvent.pointerUp(label);
+    fireEvent.click(label);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(checkbox).not.toBeChecked();
+    await user.click(within(group).getByText('Near Mint'));
+    expect(checkbox).toBeChecked();
+    await user.click(checkbox);
+    expect(checkbox).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /select masters 25/i })).toBeChecked();
+
+    await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
+    await user.click(screen.getByRole('button', { name: 'Conditions for Any Printing' }));
+    group = screen.getByRole('group', { name: 'Conditions for Any Printing' });
+    checkbox = within(group).getByRole('checkbox', { name: 'Damaged' });
+    await user.click(within(group).getByText('Damaged'));
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
   });
 
   it('retains saved Any Printing preferences and changes while toggling', async () => {

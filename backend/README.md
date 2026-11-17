@@ -75,7 +75,7 @@ inventory webhooks will update. Wish list endpoints are scoped to the
 authenticated user and selected list, so users cannot access another user's
 lists or items, or access an item through a different list.
 
-Item preferences include an Any Printing `foil_preference` (`foil`, `etched`, `nonfoil`, or `either`),
+Item preferences include an Any Printing `foil_preference` (`foil`, `etched`, `nonfoil`, or `any`),
 `any_printing`, an optional `max_price_usd`, and `total_quantity` (default 1).
 `selected_printings` contains Scryfall IDs, positive quantities, and individual
 `foil_preference` values for selected printings. The total is independent of
@@ -92,6 +92,15 @@ are retained but inactive until it is turned off. Existing items start with thei
 previous printing selected at quantity one. These preferences are stored only:
 inventory matching, quantity tracking, and notification delivery are not yet
 implemented.
+
+The `conditions` array on an item applies to Any Printing; each entry in
+`selected_printings` has its own `conditions` array. The values are
+`near_mint`, `light_play`, `moderate_play`, `heavy_play`, and `damaged`.
+All are selected by default, including for existing items; an empty array
+matches no conditions. Updates that omit a printing's conditions preserve its
+previous selection. `WishListItem::matchesCondition` provides the condition
+check for future inventory integration after card identity has been matched;
+inventory events are not yet received.
 
 Bulk add accepts one card per line: `[quantity] card name [(set) collector-number] [*F*|*E*]`.
 Quantity defaults to one and the finish defaults to nonfoil. `*F*` selects foil;

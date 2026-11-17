@@ -169,11 +169,15 @@ export interface WishListItem {
   any_printing_quantity: number;
   total_quantity: number;
   selected_printings: PrintingSelection[] | null;
+  conditions?: CardCondition[];
   tcgplayer_id: number | null;
   in_stock: boolean;
   printing?: Printing | null;
   preview_printings: PreviewPrinting[];
 }
+
+export const CARD_CONDITIONS = ['near_mint', 'light_play', 'moderate_play', 'heavy_play', 'damaged'] as const;
+export type CardCondition = typeof CARD_CONDITIONS[number];
 
 export interface PreviewPrinting {
   scryfall_id: string;
@@ -186,6 +190,7 @@ export interface PrintingSelection {
   scryfall_id: string;
   quantity: number;
   foil_preference: WishListItem['foil_preference'];
+  conditions?: CardCondition[];
 }
 
 export interface WishListItemPreferences {
@@ -194,6 +199,7 @@ export interface WishListItemPreferences {
   max_price_usd: string | null;
   total_quantity: number;
   selected_printings: PrintingSelection[];
+  conditions: CardCondition[];
   scryfall_id?: string;
 }
 
