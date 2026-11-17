@@ -60,6 +60,36 @@ describe('App', () => {
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/health'));
   });
 
+  it('shows the beta and fan content note with a mailto contact link', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetchByPath({
+        '/user': { ok: false, status: 401 },
+      }),
+    );
+
+    render(<App />);
+
+    const footer = await screen.findByRole('contentinfo');
+    expect(footer.querySelectorAll('p')).toHaveLength(2);
+    expect(footer).toHaveTextContent(
+      'This page is in Beta and cannot confirm that information presented is correct. Contact julien.p.legault@gmail.com with any issues.',
+    );
+    expect(footer).toHaveTextContent(
+      'Portions of Darkwater Wishlist are unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy.',
+    );
+    expect(footer.querySelector('.footer-disclaimer-mobile')).toHaveTextContent(
+      'Portions of Darkwater Wishlist are unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy.',
+    );
+    expect(footer.querySelector('.footer-disclaimer-desktop')).toHaveTextContent(
+      'Darkwater Wishlist is not produced by or endorsed by Wizards of the Coast.',
+    );
+    expect(screen.getByRole('link', { name: 'julien.p.legault@gmail.com' })).toHaveAttribute(
+      'href',
+      'mailto:julien.p.legault@gmail.com',
+    );
+  });
+
   it('signs out with CSRF protection and stays signed out on reload', async () => {
     let signedIn = true;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

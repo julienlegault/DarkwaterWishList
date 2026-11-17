@@ -58,6 +58,20 @@ function App() {
       </header>
       {logoutError && <p className="error-message" role="alert">{logoutError}</p>}
       {user ? <WishLists /> : <Login onSuccess={handleLoginSuccess} />}
+      <footer className="site-footer">
+        <p>
+          This page is in Beta and cannot confirm that information presented is correct. Contact{' '}
+          <a href="mailto:julien.p.legault@gmail.com">julien.p.legault@gmail.com</a> with any issues.
+        </p>
+        <p>
+          <span className="footer-disclaimer-desktop">
+            Portions of Darkwater Wishlist are unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. The literal and graphical information presented on this site about Magic: The Gathering, including card images and mana symbols, is copyright Wizards of the Coast, LLC. Darkwater Wishlist is not produced by or endorsed by Wizards of the Coast.
+          </span>
+          <span className="footer-disclaimer-mobile">
+            Portions of Darkwater Wishlist are unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy.
+          </span>
+        </p>
+      </footer>
     </main>
   );
 }

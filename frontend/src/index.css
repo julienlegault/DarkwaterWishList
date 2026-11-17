@@ -19,7 +19,7 @@ body {
 #root {
   width: 100%;
   max-width: 1200px;
-  padding: 2rem 1rem;
+  padding: 2rem 1rem 8rem;
 }
 
 button,
@@ -90,6 +90,31 @@ a:focus-visible {
   height: 4rem;
   object-fit: contain;
   object-position: left;
+}
+
+.site-footer {
+  position: fixed;
+  z-index: 3;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid #444;
+  background: #000;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.site-footer p {
+  max-width: 1200px;
+  margin: 0.25rem auto;
+}
+
+.footer-disclaimer-mobile {
+  display: none;
 }
 
 .lists-layout {
@@ -226,6 +251,18 @@ a:focus-visible {
 }
 
 @media (max-width: 650px) {
+  #root {
+    padding-bottom: 15rem;
+  }
+
+  .footer-disclaimer-desktop {
+    display: none;
+  }
+
+  .footer-disclaimer-mobile {
+    display: inline;
+  }
+
   .lists-layout {
     grid-template-columns: 1fr;
   }
