@@ -63,7 +63,7 @@ function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Remove ${item.card_name} from your wish list`}
+        aria-label={`Remove ${item.card_name} from your wishlist`}
       >
         🗑
       </button>

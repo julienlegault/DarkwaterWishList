@@ -66,7 +66,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
       });
       setNextCursor(response.next_cursor ?? null);
     } catch {
-      if (generation.current === requestGeneration) setLoadError('Unable to load your wish list. Try again.');
+      if (generation.current === requestGeneration) setLoadError('Unable to load your wishlist. Try again.');
     } finally {
       if (generation.current === requestGeneration) {
         loadingRef.current = false;
@@ -109,7 +109,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
       );
       setError(null);
     } catch {
-      setError(`Unable to add ${card.name} to your wish list.`);
+      setError(`Unable to add ${card.name} to your wishlist.`);
     }
   }, [list.id]);
 
@@ -160,8 +160,8 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
           />
         ))}
       </ul>
-      {loading && <p role="status">Loading your wish list…</p>}
-      {!loading && !loadError && items.length === 0 && <p>Your wish list is empty. Search for a card to add one.</p>}
+      {loading && <p role="status">Loading your wishlist…</p>}
+      {!loading && !loadError && items.length === 0 && <p>Your wishlist is empty. Search for a card to add one.</p>}
       {(nextCursor || loadError) && (
         <div ref={loadMoreRef}>
           <button type="button" disabled={loading} onClick={() => void loadPage(nextCursor ?? undefined, !nextCursor)}>

@@ -19,7 +19,9 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [foil, setFoil] = useState<WishListItem['foil_preference']>(item.foil_preference ?? 'any');
+  const [foil, setFoil] = useState<WishListItem['foil_preference']>(
+    item.any_printing ? item.foil_preference : 'any',
+  );
   const [anyPrinting, setAnyPrinting] = useState(item.any_printing);
   const [price, setPrice] = useState(item.max_price_usd ?? '');
   const [quantity, setQuantity] = useState(String(item.total_quantity));
@@ -70,7 +72,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
     setSaving(true);
     setError(null);
     const preferences: WishListItemPreferences = {
-      foil_preference: foil,
+      foil_preference: anyPrinting ? foil : item.foil_preference,
       any_printing: anyPrinting,
       max_price_usd: price === '' ? null : price,
       total_quantity: Number(quantity),

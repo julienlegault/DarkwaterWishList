@@ -46,7 +46,7 @@ function CardSearch({ onSelectCard }: CardSearchProps) {
 
   return (
     <div className="card-search">
-      <label htmlFor="card-search-input">Add a card to your wish list</label>
+      <label htmlFor="card-search-input">Add a card to your wishlist</label>
       <input
         id="card-search-input"
         type="text"

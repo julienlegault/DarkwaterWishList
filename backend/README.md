@@ -84,7 +84,9 @@ quantity field updates both. Existing specific-printing totals are initialized
 from their selected quantities; Any Printing totals retain their saved quantity.
 Item responses also include up
 to five `preview_printings`: selected printings in selection order, or the most
-recent printings when Any Printing is enabled. Any Printing uses its own price limit; specific selections
+recent printings when Any Printing is enabled. Enabling Any Printing defaults its foil
+preference to Any; an existing active Any Printing preference is preserved when reopened.
+Any Printing uses its own price limit; specific selections
 are retained but inactive until it is turned off. Existing items start with their
 previous printing selected at quantity one. These preferences are stored only:
 inventory matching, quantity tracking, and notification delivery are not yet

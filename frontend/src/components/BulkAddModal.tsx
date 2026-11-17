@@ -32,7 +32,7 @@ function BulkAddModal({ listId, onClose, onAdded }: {
     } catch (error) {
       setErrors([error instanceof ApiError && error.status === 422
         ? error.detail ?? 'Invalid bulk request.'
-        : 'Unable to complete the request. Cards may have been added; reload and check the wish list before retrying.']);
+        : 'Unable to complete the request. Cards may have been added; reload and check the wishlist before retrying.']);
       setSaving(false);
     }
   }

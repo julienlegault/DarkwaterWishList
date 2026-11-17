@@ -476,7 +476,7 @@ describe('WishList', () => {
     expect(selection).toBeChecked();
     expect(within(dialog).queryByLabelText(/printings under/i)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Foil' }), 'any');
+    expect(within(dialog).getByRole('combobox', { name: 'Foil' })).toHaveValue('any');
     expect(selection).toBeChecked();
     expect(selection).toBeDisabled();
     await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
@@ -523,19 +523,22 @@ describe('WishList', () => {
     expect(screen.getByRole('img', { name: 'Lightning Bolt' }).querySelector('img')).toHaveAttribute('src', 'https://cards.example/old.jpg');
   });
 
-  it('retains the saved quantity when reopening Any Printing preferences', async () => {
+  it('retains saved Any Printing preferences and changes while toggling', async () => {
     const user = userEvent.setup();
     vi.mocked(client.getWishList).mockResolvedValue({
-      data: [{ ...boltItem, any_printing: true, any_printing_quantity: 4, total_quantity: 4 }],
+      data: [{ ...boltItem, any_printing: true, foil_preference: 'etched', any_printing_quantity: 4, total_quantity: 4 }],
     });
     vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
     renderWishList();
 
     await user.click(await screen.findByRole('button', { name: /change printing/i }));
     expect(screen.getByLabelText('Total Quantity')).toHaveValue(4);
+    expect(screen.getByRole('combobox', { name: 'Foil' })).toHaveValue('etched');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Foil' }), 'foil');
     await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
     await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
     expect(screen.getByLabelText('Total Quantity')).toHaveValue(4);
+    expect(screen.getByRole('combobox', { name: 'Foil' })).toHaveValue('foil');
   });
 
   it('shows at most five preview slices when Any Printing is selected', async () => {

@@ -48,7 +48,7 @@ function App() {
     <main>
       <header className="app-header">
         <h1 className="app-title">
-          <img src={logo} alt="Darkwater Wish List" />
+          <img src={logo} alt="Darkwater Wishlist" />
         </h1>
         {user && (
           <button type="button" onClick={handleLogout} disabled={logoutBusy}>
