@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as client from '../api/client';
 import WishLists from './WishLists';
 
@@ -11,9 +11,11 @@ vi.mock('../api/client', async (importOriginal) => ({
   updateWishList: vi.fn(),
   deleteWishList: vi.fn(),
   getWishList: vi.fn(),
+  getWishListTotalCards: vi.fn(),
 }));
 
 describe('WishLists', () => {
+  beforeEach(() => vi.mocked(client.getWishListTotalCards).mockResolvedValue({ total_cards: 0 }));
   afterEach(() => vi.resetAllMocks());
 
   it('creates lists, switches between them, and persists the notification preference', async () => {

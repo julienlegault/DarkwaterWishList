@@ -228,6 +228,10 @@ export function getWishList(listId: number, cursor?: string): Promise<{ data: Wi
   return request(`/wish-lists/${listId}/items?${params}`);
 }
 
+export function getWishListTotalCards(listId: number): Promise<{ total_cards: number }> {
+  return request(`/wish-lists/${listId}/total-cards`);
+}
+
 /**
  * Adds a card (by its selected printing's Scryfall ID) to the authenticated
  * user's wish list. Adding a card already on the list updates its printing

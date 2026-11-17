@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WishList from './WishList';
 import WishListCard from './WishListCard';
 import * as client from '../api/client';
@@ -8,6 +8,7 @@ import * as client from '../api/client';
 vi.mock('../api/client', async (importOriginal) => ({
   ...await importOriginal<typeof client>(),
   getWishList: vi.fn(),
+  getWishListTotalCards: vi.fn(),
   addWishListItem: vi.fn(),
   addBulkWishListLines: vi.fn(),
   updateWishListItem: vi.fn(),
@@ -56,6 +57,10 @@ const list = { id: 7, name: 'My List', notify_me: false };
 const renderWishList = () => render(<WishList list={list} busy={false} onNotifyChange={vi.fn()} onDelete={vi.fn()} />);
 
 describe('WishList', () => {
+  beforeEach(() => {
+    vi.mocked(client.getWishListTotalCards).mockResolvedValue({ total_cards: 0 });
+  });
+
   afterEach(() => {
     vi.resetAllMocks();
     vi.unstubAllGlobals();
@@ -67,11 +72,64 @@ describe('WishList', () => {
     renderWishList();
 
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
-    expect(screen.getByText('Quantity requested: 1')).toBeInTheDocument();
+    expect(screen.getByText('Quantity: 1')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Lightning Bolt' }).querySelector('img')).toHaveAttribute(
       'src',
       'https://cards.example/bolt-new.jpg',
     );
+  });
+
+  it('displays the total for the whole list and refreshes it after a quantity change and removal', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem], next_cursor: 'more' });
+    vi.mocked(client.getWishListTotalCards)
+      .mockResolvedValueOnce({ total_cards: 3 })
+      .mockResolvedValueOnce({ total_cards: 4 })
+      .mockResolvedValueOnce({ total_cards: 1 });
+    vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
+    vi.mocked(client.updateWishListItem).mockResolvedValue({ data: { ...boltItem, total_quantity: 3 } });
+    vi.mocked(client.removeWishListItem).mockResolvedValue(undefined);
+    renderWishList();
+
+    expect(await screen.findByText('Total Cards: 3')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /change printing/i }));
+    const dialog = screen.getByRole('dialog');
+    const quantity = within(dialog).getByLabelText('Total Quantity');
+    await user.clear(quantity);
+    await user.type(quantity, '3');
+    await user.click(await within(dialog).findByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Total Cards: 4')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /remove lightning bolt/i }));
+    expect(await screen.findByText('Total Cards: 1')).toBeInTheDocument();
+    expect(client.getWishListTotalCards).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports and retries a failed total request', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [] });
+    vi.mocked(client.getWishListTotalCards)
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce({ total_cards: 0 });
+    renderWishList();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load card total');
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Total Cards: 0')).toBeInTheDocument();
+  });
+
+  it('ignores a stale total response after a card is removed', async () => {
+    let finishInitial: (value: { total_cards: number }) => void = () => {};
+    vi.mocked(client.getWishList).mockResolvedValue({ data: [boltItem] });
+    vi.mocked(client.getWishListTotalCards)
+      .mockReturnValueOnce(new Promise((resolve) => { finishInitial = resolve; }))
+      .mockResolvedValueOnce({ total_cards: 0 });
+    vi.mocked(client.removeWishListItem).mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderWishList();
+
+    await user.click(await screen.findByRole('button', { name: /remove lightning bolt/i }));
+    expect(await screen.findByText('Total Cards: 0')).toBeInTheDocument();
+    await act(async () => finishInitial({ total_cards: 1 }));
+    expect(screen.getByText('Total Cards: 0')).toBeInTheDocument();
   });
 
   it('indicates stock status with a border and accessible text', () => {
@@ -124,6 +182,10 @@ describe('WishList', () => {
     vi.mocked(client.addBulkWishListLines)
       .mockResolvedValueOnce({ errors: [{ index: 1, message: 'Card not found.' }] })
       .mockResolvedValueOnce({ errors: [] });
+    vi.mocked(client.getWishListTotalCards)
+      .mockResolvedValueOnce({ total_cards: 0 })
+      .mockResolvedValueOnce({ total_cards: 1 })
+      .mockResolvedValueOnce({ total_cards: 2 });
     renderWishList();
     await user.click(await screen.findByRole('button', { name: 'Bulk Add' }));
     const input = screen.getByRole('textbox', { name: 'Cards' });
@@ -132,10 +194,12 @@ describe('WishList', () => {
     await waitFor(() => expect(input).toHaveValue('Unknown Card'));
     expect(screen.getByRole('alert')).toHaveTextContent('Card not found.');
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
+    expect(await screen.findByText('Total Cards: 1')).toBeInTheDocument();
     expect(client.addBulkWishListLines).toHaveBeenCalledWith(7, ['1 Lightning Bolt (M25) 142', 'Unknown Card']);
     await user.click(screen.getByRole('button', { name: 'Add Cards' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(await screen.findByText('Quantity requested: 2')).toBeInTheDocument();
+    expect(await screen.findByText('Quantity: 2')).toBeInTheDocument();
+    expect(await screen.findByText('Total Cards: 2')).toBeInTheDocument();
   });
 
   it('preserves lines after an uncertain batch request', async () => {
@@ -211,10 +275,13 @@ describe('WishList', () => {
     });
     vi.mocked(client.getPrintings).mockResolvedValue({ data: [boltItem.printing!] });
     vi.mocked(client.addWishListItem).mockResolvedValue({ data: boltItem });
+    vi.mocked(client.getWishListTotalCards)
+      .mockResolvedValueOnce({ total_cards: 0 })
+      .mockResolvedValueOnce({ total_cards: 1 });
 
     renderWishList();
 
-    await screen.findByText(/your wish list is empty/i);
+    await screen.findByText(/your wishlist is empty/i);
 
     await user.type(screen.getByLabelText(/add a card/i), 'Lightning');
     const suggestion = await screen.findByRole('button', { name: 'Lightning Bolt' });
@@ -223,6 +290,7 @@ describe('WishList', () => {
     await waitFor(() => expect(client.getPrintings).toHaveBeenCalledWith('oracle-bolt'));
     await waitFor(() => expect(client.addWishListItem).toHaveBeenCalledWith(7, 'printing-new'));
     expect(await screen.findByText('Lightning Bolt')).toBeInTheDocument();
+    expect(await screen.findByText('Total Cards: 1')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /change printing/i }));
     await user.click(screen.getByRole('switch', { name: 'Any Printing' }));
     expect(screen.getByLabelText('Total Quantity')).toHaveValue(1);
@@ -340,7 +408,7 @@ describe('WishList', () => {
         expect.objectContaining({ scryfall_id: 'third', quantity: 1 }),
       ]),
     })));
-    expect(screen.getByText(`Quantity requested: ${total}`)).toBeInTheDocument();
+    expect(screen.getByText(`Quantity: ${total}`)).toBeInTheDocument();
   });
 
   it('adjusts the independently edited total by the change in a printing quantity', async () => {

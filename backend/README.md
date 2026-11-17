@@ -48,6 +48,7 @@ Available endpoints:
 | PATCH | `/api/wish-lists/{list}` | Update the list's `notify_me` preference |
 | DELETE | `/api/wish-lists/{list}` | Delete a list and its items; provide its `name` for confirmation |
 | GET, POST | `/api/wish-lists/{list}/items` | List items or add a card by `scryfall_id` |
+| GET | `/api/wish-lists/{list}/total-cards` | Total requested quantity across all cards in the list |
 | POST | `/api/wish-lists/{list}/bulk-items` | Add one line or a batch of bulk-format card lines |
 | PATCH, DELETE | `/api/wish-lists/{list}/items/{item}` | Update or remove an item |
 

@@ -57,15 +57,17 @@ function WishListCard({ item, onRemove, onOpenPrintings }: WishListCardProps) {
         )}
       </button>
       <p className="wish-list-card-name">{item.card_name}</p>
-      <p>Quantity requested: {item.total_quantity}</p>
       <span className="visually-hidden">{stockStatus}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${item.card_name} from your wishlist`}
-      >
-        🗑
-      </button>
+      <div className="wish-list-card-footer">
+        <p>Quantity: {item.total_quantity}</p>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${item.card_name} from your wishlist`}
+        >
+          🗑
+        </button>
+      </div>
     </li>
   );
 }

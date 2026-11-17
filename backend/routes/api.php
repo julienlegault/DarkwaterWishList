@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->prefix('wish-lists')->group(function (): void
     Route::post('/', [WishListsController::class, 'store']);
     Route::patch('/{wishList}', [WishListsController::class, 'update']);
     Route::delete('/{wishList}', [WishListsController::class, 'destroy']);
+    Route::get('/{wishList}/total-cards', [WishListController::class, 'totalCards']);
     Route::get('/{wishList}/items', [WishListController::class, 'index']);
     Route::post('/{wishList}/items', [WishListController::class, 'store']);
     Route::post('/{wishList}/bulk-items', [BulkWishListController::class, 'store']);

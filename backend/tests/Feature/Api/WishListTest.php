@@ -42,9 +42,13 @@ class WishListTest extends TestCase
         $otherUser = User::factory()->create();
         $other = $otherUser->wishLists()->create(['name' => 'Other']);
         for ($i = 0; $i < 35; $i++) {
-            WishListItem::factory()->for($user)->create(['wish_list_id' => $list->id, 'card_name' => 'Same Name']);
+            WishListItem::factory()->for($user)->create([
+                'wish_list_id' => $list->id, 'card_name' => 'Same Name', 'total_quantity' => $i === 34 ? 2 : 1,
+            ]);
         }
         WishListItem::factory()->for($otherUser)->create(['wish_list_id' => $other->id]);
+        $this->actingAs($user)->getJson("/api/wish-lists/{$list->id}/total-cards")
+            ->assertOk()->assertJsonPath('total_cards', 36);
         $url = "/api/wish-lists/{$list->id}/items?paginated=1";
         $first = $this->actingAs($user)->getJson($url)->assertOk()->assertJsonCount(30, 'data');
         $cursor = $first->json('next_cursor');
@@ -56,6 +60,27 @@ class WishListTest extends TestCase
             array_column($second->json('data'), 'id'),
         )));
         $this->getJson("/api/wish-lists/{$other->id}/items?paginated=1")->assertNotFound();
+    }
+
+    public function test_total_cards_sums_quantities_for_the_selected_list_only(): void
+    {
+        $user = User::factory()->create();
+        $list = $user->wishLists()->create(['name' => 'Cards']);
+        $otherList = $user->wishLists()->create(['name' => 'Other']);
+        $otherUser = User::factory()->create();
+        $privateList = $otherUser->wishLists()->create(['name' => 'Private']);
+
+        $this->getJson("/api/wish-lists/{$list->id}/total-cards")->assertUnauthorized();
+        $this->actingAs($user)->getJson("/api/wish-lists/{$list->id}/total-cards")
+            ->assertOk()->assertJsonPath('total_cards', 0);
+
+        WishListItem::factory()->for($user)->create(['wish_list_id' => $list->id, 'total_quantity' => 2]);
+        WishListItem::factory()->for($user)->create(['wish_list_id' => $list->id, 'total_quantity' => 1]);
+        WishListItem::factory()->for($user)->create(['wish_list_id' => $otherList->id, 'total_quantity' => 5]);
+        WishListItem::factory()->for($otherUser)->create(['wish_list_id' => $privateList->id, 'total_quantity' => 8]);
+
+        $this->getJson("/api/wish-lists/{$list->id}/total-cards")->assertOk()->assertJsonPath('total_cards', 3);
+        $this->getJson("/api/wish-lists/{$privateList->id}/total-cards")->assertNotFound();
     }
 
     public function test_store_adds_a_card_using_the_given_printing(): void

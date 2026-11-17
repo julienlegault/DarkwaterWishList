@@ -144,6 +144,18 @@ a:focus-visible {
   margin-top: 0;
 }
 
+.wish-list-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.wish-list-heading p {
+  margin: 0 0 1rem;
+}
+
 .list-toolbar {
   flex-wrap: wrap;
   padding: 1rem;
@@ -194,6 +206,14 @@ a:focus-visible {
 .button-danger:hover:not(:disabled) {
   background: #991b1b;
   color: #fff;
+}
+
+.button-primary {
+  background: var(--accent-color);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: #4b804b;
 }
 
 .list-dialog form {
@@ -307,14 +327,27 @@ a:focus-visible {
 /* Card Search */
 .card-search {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 100%;
 }
 
 .card-search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  max-height: 18rem;
+  overflow-y: auto;
   list-style: none;
-  margin: 0;
+  margin: 0.25rem 0 0;
   padding: 0.25rem;
   border: 1px solid currentColor;
   border-radius: 0.25rem;
+  background: var(--surface-color);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5);
 }
 
 .card-search-suggestions button {
@@ -356,6 +389,13 @@ a:focus-visible {
 
 .wish-list-card p {
   margin: 0.25rem 0;
+}
+
+.wish-list-card-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .visually-hidden {
@@ -423,6 +463,7 @@ a:focus-visible {
 
 .printing-modal-backdrop {
   position: fixed;
+  z-index: 2;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   display: flex;

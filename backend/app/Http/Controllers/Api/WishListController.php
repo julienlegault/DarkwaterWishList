@@ -24,6 +24,13 @@ class WishListController extends Controller
             ?? $request->user()->wishLists()->create(['name' => 'Wish List']);
     }
 
+    public function totalCards(Request $request, int $wishList): JsonResponse
+    {
+        return response()->json([
+            'total_cards' => (int) $this->list($request, $wishList)->items()->sum('total_quantity'),
+        ]);
+    }
+
     public function index(Request $request, ?int $wishList = null): JsonResponse
     {
         $query = $this->list($request, $wishList)->items()->with('printing')->orderBy('card_name')->orderBy('id');

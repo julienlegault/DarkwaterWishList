@@ -3,6 +3,7 @@ import {
   addWishListItem,
   getPrintings,
   getWishList,
+  getWishListTotalCards,
   removeWishListItem,
   updateWishListItem,
   type CardSuggestion,
@@ -34,6 +35,9 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
   const [loading, setLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [totalCards, setTotalCards] = useState<number | null>(null);
+  const [totalError, setTotalError] = useState(false);
+  const totalRequest = useRef(0);
   const generation = useRef(0);
   const loadingRef = useRef(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -42,6 +46,23 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
   const [error, setError] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<WishListItemData | null>(null);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
+
+  const refreshTotal = useCallback(() => {
+    const requestId = ++totalRequest.current;
+    return getWishListTotalCards(list.id)
+      .then(({ total_cards }) => {
+        if (requestId === totalRequest.current) {
+          setTotalCards(total_cards);
+          setTotalError(false);
+        }
+      })
+      .catch(() => {
+        if (requestId === totalRequest.current) {
+          setTotalCards(null);
+          setTotalError(true);
+        }
+      });
+  }, [list.id]);
 
   const loadPage = useCallback(async (cursor?: string, reset = false) => {
     if (loadingRef.current && !reset) return;
@@ -77,9 +98,11 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
 
   useEffect(() => {
     const requestGeneration = generation;
+    const totalGeneration = totalRequest;
     void loadPage(undefined, true);
-    return () => { requestGeneration.current++; };
-  }, [loadPage]);
+    void refreshTotal();
+    return () => { requestGeneration.current++; totalGeneration.current++; };
+  }, [loadPage, refreshTotal]);
 
   useEffect(() => {
     const target = loadMoreRef.current;
@@ -108,19 +131,21 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
         sortByName([...current.filter((item) => item.id !== response.data.id), response.data]),
       );
       setError(null);
+      void refreshTotal();
     } catch {
       setError(`Unable to add ${card.name} to your wishlist.`);
     }
-  }, [list.id]);
+  }, [list.id, refreshTotal]);
 
   const handleRemove = useCallback((item: WishListItemData) => {
     removeWishListItem(list.id, item.id)
       .then(() => {
         mutations.current.set(item.id, { version: ++mutationVersion.current, item: null });
         setItems((current) => current.filter((i) => i.id !== item.id));
+        void refreshTotal();
       })
       .catch(() => setError('Unable to remove that card.'));
-  }, [list.id]);
+  }, [list.id, refreshTotal]);
 
   const handlePreferencesSaved = useCallback(
     async (preferences: WishListItemPreferences) => {
@@ -132,20 +157,25 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
       );
       setError(null);
       setActiveItem(null);
+      void refreshTotal();
     },
-    [activeItem, list.id],
+    [activeItem, list.id, refreshTotal],
   );
 
   return (
     <section aria-label="Wish list">
-      <h2>{list.name}</h2>
+      <div className="wish-list-heading">
+        <h2>{list.name}</h2>
+        <p>Total Cards: {totalCards ?? '…'}</p>
+      </div>
+      {totalError && <p role="alert">Unable to load card total. <button type="button" onClick={() => void refreshTotal()}>Retry</button></p>}
       <div className="list-toolbar">
         <label className="notify-toggle">
           <input type="checkbox" role="switch" disabled={busy} checked={list.notify_me} onChange={(event) => onNotifyChange(event.target.checked)} />
           Notify Me
         </label>
         <CardSearch onSelectCard={handleSelectCard} />
-        <button type="button" className="button" onClick={() => setBulkAddOpen(true)}>Bulk Add</button>
+        <button type="button" className="button button-primary" onClick={() => setBulkAddOpen(true)}>Bulk Add</button>
         <button type="button" className="button button-danger" onClick={onDelete}>Delete List</button>
       </div>
       {error && <p role="alert">{error}</p>}
@@ -172,6 +202,7 @@ function WishList({ list, onNotifyChange, onDelete, busy }: {
       {bulkAddOpen && (
         <BulkAddModal listId={list.id} onClose={() => setBulkAddOpen(false)} onAdded={() => {
           void loadPage(undefined, true);
+          void refreshTotal();
         }} />
       )}
       {activeItem && (
