@@ -69,6 +69,23 @@ class LocalAuthTest extends TestCase
             ->assertOk()
             ->assertJson(['email' => 'dev@example.com']);
     }
+
+    public function test_logout_invalidates_the_session_and_allows_signing_in_again(): void
+    {
+        $this->post('/auth/local/login', ['email' => 'dev@example.com'])->assertOk();
+        $this->withSession(['logout_test' => 'session data'])
+            ->postJson('/auth/logout')
+            ->assertNoContent()
+            ->assertSessionMissing('logout_test');
+
+        $this->assertGuest();
+        $this->withHeader('Origin', 'http://localhost:5173')
+            ->getJson('/api/user')
+            ->assertUnauthorized();
+
+        $this->post('/auth/local/login', ['email' => 'dev@example.com'])->assertOk();
+        $this->assertAuthenticated();
+    }
 }
 
 

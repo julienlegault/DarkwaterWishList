@@ -19,12 +19,12 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [foil, setFoil] = useState<WishListItem['foil_preference']>(item.foil_preference ?? 'either');
+  const [foil, setFoil] = useState<WishListItem['foil_preference']>(item.foil_preference ?? 'any');
   const [anyPrinting, setAnyPrinting] = useState(item.any_printing);
   const [price, setPrice] = useState(item.max_price_usd ?? '');
   const [quantity, setQuantity] = useState(String(item.total_quantity));
   const [selected, setSelected] = useState(() =>
-    (item.selected_printings ?? [{ scryfall_id: item.scryfall_id, quantity: 1, foil_preference: item.foil_preference ?? 'either' }])
+    (item.selected_printings ?? [{ scryfall_id: item.scryfall_id, quantity: 1, foil_preference: item.foil_preference ?? 'any' }])
       .map((selection) => ({ ...selection, quantity: String(selection.quantity), lastValidQuantity: selection.quantity })),
   );
 
@@ -114,7 +114,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                 <label>
                   Foil
                   <select value={foil} onChange={(event) => setFoil(event.target.value as WishListItem['foil_preference'])}>
-                    <option value="either">Either</option>
+                    <option value="any">Any</option>
                     <option value="foil">Foil</option>
                     <option value="etched">Etched foil</option>
                     <option value="nonfoil">Non-foil</option>
@@ -160,7 +160,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                             aria-label={`Select ${label}`}
                             checked={!!selection}
                             onChange={(event) => setSelected((current) => event.target.checked
-                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', lastValidQuantity: 1, foil_preference: finish ?? 'either' }]
+                              ? [...current, { scryfall_id: printing.scryfall_id, quantity: '1', lastValidQuantity: 1, foil_preference: finish ?? 'any' }]
                               : current.filter((entry) => entry.scryfall_id !== printing.scryfall_id))}
                           />
                         </span>
@@ -190,7 +190,7 @@ function PrintingModal({ item, onClose, onSave }: PrintingModalProps) {
                                   entry.scryfall_id === printing.scryfall_id ? { ...entry, foil_preference: value } : entry));
                               }}
                             >
-                              <option value="either">Either</option>
+                              <option value="any">Any</option>
                               <option value="foil">Foil</option>
                               {(printing.finishes?.includes('etched') || selection.foil_preference === 'etched') && <option value="etched">Etched foil</option>}
                               <option value="nonfoil">Non-foil</option>

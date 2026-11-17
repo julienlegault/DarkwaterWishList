@@ -56,7 +56,75 @@ describe('App', () => {
       await screen.findByRole('heading', { name: /sign in/i }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/backend status|application foundation/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/health'));
+  });
+
+  it('signs out with CSRF protection and stays signed out on reload', async () => {
+    let signedIn = true;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === '/sanctum/csrf-cookie') {
+        document.cookie = 'XSRF-TOKEN=logout-token; path=/';
+        return { ok: true, status: 204 };
+      }
+      if (url === '/auth/logout') {
+        signedIn = false;
+        return { ok: true, status: 204 };
+      }
+      if (url.endsWith('/user')) {
+        return { ok: signedIn, status: signedIn ? 200 : 401, json: async () => ({ id: 1, name: 'Ash', email: 'ash@example.com' }) };
+      }
+      if (url.endsWith('/wish-lists')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 1, name: 'List', notify_me: false }] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ data: [] }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /log out/i }));
+
+    expect(fetchMock).toHaveBeenCalledWith('/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json', 'X-XSRF-TOKEN': 'logout-token' },
+    });
+    expect(await screen.findByRole('heading', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /log out/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps the user signed in and displays an error if logout fails', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === '/sanctum/csrf-cookie') {
+        document.cookie = 'XSRF-TOKEN=logout-token; path=/';
+        return { ok: true, status: 204 };
+      }
+      if (url === '/auth/logout') return { ok: false, status: 500 };
+      if (url.endsWith('/user')) {
+        return { ok: true, status: 200, json: async () => ({ id: 1, name: 'Ash', email: 'ash@example.com' }) };
+      }
+      if (url.endsWith('/wish-lists')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 1, name: 'List', notify_me: false }] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ data: [] }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /log out/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/unable to sign out/i);
+    expect(screen.getByRole('button', { name: /log out/i })).toBeEnabled();
+    expect(screen.queryByRole('heading', { name: /sign in/i })).not.toBeInTheDocument();
   });
 
   it('initializes CSRF protection before submitting email login', async () => {

@@ -154,6 +154,8 @@ include the frontend host and port in `SANCTUM_STATEFUL_DOMAINS`. The frontend
 starts sign-in at `/auth/google/redirect`. Laravel creates or reuses the user
 by Google's verified email and establishes a session. The session-protected
 `GET /api/user` endpoint returns the signed-in user's identity.
+`POST /auth/logout` invalidates the session and requires the CSRF token; the
+frontend returns to the sign-in screen after a successful logout.
 
 For local development, the example environment uses `http://localhost:8000`
 for Laravel and `http://localhost:5173` for Vite. Register

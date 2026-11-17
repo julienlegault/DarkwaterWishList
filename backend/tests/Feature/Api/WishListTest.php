@@ -200,13 +200,13 @@ class WishListTest extends TestCase
         ];
 
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
-            'foil_preference' => 'either',
+            'foil_preference' => 'any',
             'any_printing' => true,
             'max_price_usd' => '12.50',
             'any_printing_quantity' => 4,
             'selected_printings' => $selections,
         ])->assertOk()
-            ->assertJsonPath('data.foil_preference', 'either')
+            ->assertJsonPath('data.foil_preference', 'any')
             ->assertJsonPath('data.any_printing', true)
             ->assertJsonPath('data.max_price_usd', '12.50')
             ->assertJsonPath('data.any_printing_quantity', 4)
@@ -257,13 +257,13 @@ class WishListTest extends TestCase
         $item = WishListItem::factory()->for($user)->create([
             'catalog_id' => 'oracle-a',
             'scryfall_id' => 'printing-a',
-            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 1, 'foil_preference' => 'either']],
+            'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 1, 'foil_preference' => 'any']],
         ]);
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", [
             'selected_printings' => [['scryfall_id' => 'printing-a', 'quantity' => 2]],
-        ])->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'either');
+        ])->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'any');
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['foil_preference' => 'nonfoil'])
-            ->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'either');
+            ->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'any');
         $this->actingAs($user)->patchJson("/api/wishlist/{$item->id}", ['foil' => true])
             ->assertOk()->assertJsonPath('data.selected_printings.0.foil_preference', 'foil');
     }
@@ -288,14 +288,14 @@ class WishListTest extends TestCase
     {
         $user = User::factory()->create();
         $item = WishListItem::factory()->for($user)->create([
-            'foil_preference' => 'either',
+            'foil_preference' => 'any',
             'selected_printings' => [['scryfall_id' => 'existing-printing', 'quantity' => 2]],
         ]);
         $migration = require database_path('migrations/2026_11_15_000003_add_printing_foil_preferences.php');
         $migration->up();
         $item->refresh();
         $this->assertSame([
-            ['scryfall_id' => 'existing-printing', 'quantity' => 2, 'foil_preference' => 'either'],
+            ['scryfall_id' => 'existing-printing', 'quantity' => 2, 'foil_preference' => 'any'],
         ], $item->selected_printings);
     }
 

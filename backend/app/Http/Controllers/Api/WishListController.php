@@ -79,7 +79,7 @@ class WishListController extends Controller
         $validated = $request->validate([
             'scryfall_id' => ['sometimes', 'string', Rule::exists('card_printings', 'scryfall_id')],
             'foil' => ['sometimes', 'boolean'],
-            'foil_preference' => ['sometimes', Rule::in(['foil', 'etched', 'nonfoil', 'either'])],
+            'foil_preference' => ['sometimes', Rule::in(['foil', 'etched', 'nonfoil', 'any'])],
             'any_printing' => ['sometimes', 'boolean'],
             'max_price_usd' => ['sometimes', 'nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
             'any_printing_quantity' => ['sometimes', 'integer', 'min:1', 'max:4294967295'],
@@ -87,7 +87,7 @@ class WishListController extends Controller
             'selected_printings' => ['sometimes', 'array'],
             'selected_printings.*.scryfall_id' => ['required', 'string', 'distinct', Rule::exists('card_printings', 'scryfall_id')],
             'selected_printings.*.quantity' => ['required', 'integer', 'min:1', 'max:4294967295'],
-            'selected_printings.*.foil_preference' => ['sometimes', Rule::in(['foil', 'etched', 'nonfoil', 'either'])],
+            'selected_printings.*.foil_preference' => ['sometimes', Rule::in(['foil', 'etched', 'nonfoil', 'any'])],
         ]);
 
         if (isset($validated['selected_printings'])) {
@@ -132,7 +132,7 @@ class WishListController extends Controller
         }
         if (array_key_exists('foil_preference', $validated)) {
             $item->foil_preference = $validated['foil_preference'];
-            if ($validated['foil_preference'] !== 'either') {
+            if ($validated['foil_preference'] !== 'any') {
                 $item->foil = in_array($validated['foil_preference'], ['foil', 'etched'], true);
             }
         }

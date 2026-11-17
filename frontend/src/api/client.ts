@@ -95,6 +95,17 @@ export function getCurrentUser(): Promise<CurrentUser> {
   return request<CurrentUser>('/user');
 }
 
+export async function logout(): Promise<void> {
+  const response = await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { Accept: 'application/json', ...await csrfHeaders() },
+  });
+  if (!response.ok) {
+    throw new ApiError(`Failed to sign out (${response.status})`, response.status);
+  }
+}
+
 export interface CardSuggestion {
   catalog_id: string;
   oracle_id: string | null;
@@ -152,7 +163,7 @@ export interface WishListItem {
   scryfall_id: string;
   card_name: string;
   foil: boolean;
-  foil_preference: 'foil' | 'etched' | 'nonfoil' | 'either';
+  foil_preference: 'foil' | 'etched' | 'nonfoil' | 'any';
   any_printing: boolean;
   max_price_usd: string | null;
   any_printing_quantity: number;

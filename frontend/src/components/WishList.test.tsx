@@ -95,7 +95,7 @@ describe('WishList', () => {
 
     rerender(<WishListCard item={{ ...item, any_printing: true, foil_preference: 'foil' }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
     expect(artwork.querySelectorAll('.foil-shine')).toHaveLength(2);
-    rerender(<WishListCard item={{ ...item, any_printing: true, foil_preference: 'either' }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
+    rerender(<WishListCard item={{ ...item, any_printing: true, foil_preference: 'any' }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
     expect(artwork.querySelectorAll('.foil-shine')).toHaveLength(0);
     rerender(<WishListCard item={{ ...boltItem, selected_printings: null, foil_preference: 'foil' }} onRemove={vi.fn()} onOpenPrintings={vi.fn()} />);
     expect(artwork.querySelectorAll('.foil-shine')).toHaveLength(1);
@@ -245,7 +245,7 @@ describe('WishList', () => {
         ...boltItem,
         selected_printings: [
           { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
-          { scryfall_id: 'printing-old', quantity: 3, foil_preference: 'either' },
+          { scryfall_id: 'printing-old', quantity: 3, foil_preference: 'any' },
         ],
         preview_printings: [boltItem.printing!, altPrinting],
       },
@@ -263,11 +263,11 @@ describe('WishList', () => {
     expect(selectedArtwork.querySelector('.foil-shine')).not.toBeInTheDocument();
     await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'foil');
     expect(selectedArtwork.querySelector('.foil-shine')).toBeInTheDocument();
-    await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'either');
+    await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'any');
     expect(selectedArtwork.querySelector('.foil-shine')).not.toBeInTheDocument();
     await user.selectOptions(within(dialog).getByLabelText(/foil for masters 25/i), 'foil');
     await user.click(within(dialog).getByRole('checkbox', { name: /select limited edition alpha/i }));
-    await user.selectOptions(within(dialog).getByLabelText(/foil for limited edition alpha/i), 'either');
+    await user.selectOptions(within(dialog).getByLabelText(/foil for limited edition alpha/i), 'any');
     const altQuantity = within(dialog).getByLabelText(/quantity for limited edition alpha/i);
     await user.clear(altQuantity);
     await user.type(altQuantity, '3');
@@ -281,7 +281,7 @@ describe('WishList', () => {
         total_quantity: 3,
         selected_printings: [
           { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
-          { scryfall_id: 'printing-old', quantity: 3, foil_preference: 'either' },
+          { scryfall_id: 'printing-old', quantity: 3, foil_preference: 'any' },
         ],
       }),
     );
@@ -397,7 +397,7 @@ describe('WishList', () => {
         { scryfall_id: 'printing-new', quantity: 1, foil_preference: 'foil' },
         { scryfall_id: 'nonfoil-only', quantity: 1, foil_preference: 'nonfoil' },
         { scryfall_id: 'foil-only', quantity: 1, foil_preference: 'foil' },
-        { scryfall_id: 'unknown-finish', quantity: 1, foil_preference: 'either' },
+        { scryfall_id: 'unknown-finish', quantity: 1, foil_preference: 'any' },
       ],
     })));
   });
@@ -476,7 +476,7 @@ describe('WishList', () => {
     expect(selection).toBeChecked();
     expect(within(dialog).queryByLabelText(/printings under/i)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Foil' }), 'either');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Foil' }), 'any');
     expect(selection).toBeChecked();
     expect(selection).toBeDisabled();
     await user.click(within(dialog).getByRole('switch', { name: 'Any Printing' }));
@@ -490,7 +490,7 @@ describe('WishList', () => {
     await user.type(quantity, '4');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, {
-      foil_preference: 'either', any_printing: true, max_price_usd: '12.5', total_quantity: 4,
+      foil_preference: 'any', any_printing: true, max_price_usd: '12.5', total_quantity: 4,
       selected_printings: [{ scryfall_id: 'printing-new', quantity: 1, foil_preference: 'nonfoil' }],
     }));
   });
@@ -517,7 +517,7 @@ describe('WishList', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(client.updateWishListItem).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       scryfall_id: 'printing-old',
-      selected_printings: [{ scryfall_id: 'printing-old', quantity: 1, foil_preference: 'either' }],
+      selected_printings: [{ scryfall_id: 'printing-old', quantity: 1, foil_preference: 'any' }],
     })));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Lightning Bolt' }).querySelector('img')).toHaveAttribute('src', 'https://cards.example/old.jpg');
