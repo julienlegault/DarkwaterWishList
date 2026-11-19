@@ -7,7 +7,7 @@ inventory (via SortSwift) has the card in stock.
 This repository is split into two independent projects:
 
 ```
-backend/   Laravel API (PHP, SQLite)
+backend/   Laravel API (PHP, SQLite locally, MySQL on Cloud Run)
 frontend/  React + TypeScript app (Vite)
 ```
 
@@ -97,11 +97,11 @@ control.
 The `Deploy to Google Cloud Run` workflow runs on every push to `main` (and can
 also be started manually from the Actions tab). It runs the frontend and backend
 tests, builds a container containing both applications, and deploys it to Cloud
-Run. The container serves the frontend at `/`, the API at `/api/*`, and applies
-database migrations and refreshes the Scryfall catalog before starting the web
-server. Every Cloud Run instance downloads and imports the catalog at startup;
-this increases startup time and requires access to Scryfall. An import failure
-prevents that instance from starting.
+Run. The container serves the frontend at `/` and the API at `/api/*`.
+Cloud SQL stores wish lists, sessions, and a single shared catalog. A separate
+Cloud Run job applies migrations before deployment, and another job refreshes
+the catalog daily via Cloud Scheduler. Web instances do not download the catalog.
+These managed resources incur ongoing charges.
 
 ### One-time Google Cloud setup
 
@@ -119,13 +119,14 @@ prevents that instance from starting.
    PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
    ```
 
-2. Enable Cloud Run, Artifact Registry, IAM Credentials, and Security Token
+2. Enable Cloud Run, Cloud SQL, Cloud Scheduler, Secret Manager, Artifact Registry, IAM Credentials, and Security Token
    Service, create the Docker repository, and create the deploy service account:
 
    ```sh
    gcloud config set project "$PROJECT_ID"
-   gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
-     iamcredentials.googleapis.com sts.googleapis.com
+   gcloud services enable run.googleapis.com sqladmin.googleapis.com \
+     cloudscheduler.googleapis.com secretmanager.googleapis.com \
+     artifactregistry.googleapis.com iamcredentials.googleapis.com sts.googleapis.com
    gcloud artifacts repositories create "$REPOSITORY" \
      --repository-format=docker --location="$REGION"
    gcloud iam service-accounts create "$DEPLOYER"
@@ -164,13 +165,80 @@ prevents that instance from starting.
    | `CLOUD_RUN_SERVICE_NAME` | Cloud Run service name |
    | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER` |
    | `GCP_DEPLOY_SERVICE_ACCOUNT` | Deployer service account email |
+   | `GCP_RUNTIME_SERVICE_ACCOUNT` | Cloud Run runtime service account email |
+   | `GCP_CLOUD_SQL_INSTANCE` | Cloud SQL connection name, `PROJECT:REGION:INSTANCE` |
+   | `GCP_DB_DATABASE` | MySQL database name |
+   | `GCP_DB_USERNAME` | MySQL application user |
+   | `GCP_DB_PASSWORD_SECRET` | Secret Manager secret name for the database password |
+   | `GCP_APP_KEY_SECRET` | Secret Manager secret name for the Laravel application key |
 
    The workflow uses short-lived GitHub OIDC credentials; do not create or store
    a service-account JSON key.
 
-The first successful workflow run creates the service. In the Cloud Run service
-configuration, set `APP_KEY` to a newly generated Laravel key (run
-`php artisan key:generate --show` in `backend/`), and configure `APP_URL`,
+### Configure shared storage before deployment
+
+1. Provision a Cloud SQL for MySQL 8 instance in the same project and region,
+   with public IP enabled for the Cloud SQL connector. Create an application
+   database and user. Enable automated backups and point-in-time recovery,
+   configure a storage limit/alerts, and test restores. Size the instance and
+   its connection limit for the Cloud Run instance count and the import job.
+   The initial import and each replacement require additional free database
+   storage for the transaction; monitor disk usage.
+2. Create a dedicated runtime service account. Grant it `roles/cloudsql.client`
+   on the project and `roles/secretmanager.secretAccessor` on the two secrets
+   below. Grant the
+   deployer `roles/iam.serviceAccountUser` on the runtime account. Store the
+   MySQL password and a stable Laravel key (generate with
+   `php artisan key:generate --show` in `backend/`) in Secret Manager, and set
+   the GitHub variables above. Do not rotate `APP_KEY` on each deploy.
+   If the existing service already sets `APP_KEY` or `DB_PASSWORD` as plain
+   environment variables, remove those entries before deploying them as secret
+   references. Remove any `DB_URL`, `SESSION_CONNECTION`, or cache connection
+   override that points to a different database.
+3. Run the deployment workflow. It creates/updates the migration and catalog
+   jobs, runs migrations once, then deploys the service with the database socket,
+   shared database sessions, and secrets. A migration failure stops deployment.
+   The image refuses to start the web server without `DB_CONNECTION=mysql`.
+   The workflow overwrites these database settings and job configurations on
+   every deploy; change the GitHub variables rather than editing them in Cloud Run.
+4. Populate the fresh catalog once and check that the execution succeeds:
+
+   ```sh
+   SERVICE="your-cloud-run-service"
+   gcloud run jobs execute "${SERVICE}-catalog" --project "$PROJECT_ID" \
+     --region "$REGION" --wait
+   ```
+
+   Search will be empty until this initial import completes. This cutover starts
+   with a **fresh** Cloud SQL database: it does not copy data from existing
+   ephemeral SQLite instances. If existing lists matter, export and migrate
+   them before switching traffic.
+
+5. Create a dedicated scheduler service account and grant it
+   `roles/run.invoker` on the catalog job. Create a Cloud Scheduler HTTP job
+   that calls the Cloud Run Admin API with an OAuth token (not OIDC):
+
+   ```sh
+   SCHEDULER_SA="wishlist-scheduler@${PROJECT_ID}.iam.gserviceaccount.com"
+   gcloud iam service-accounts create wishlist-scheduler
+   gcloud run jobs add-iam-policy-binding "${SERVICE}-catalog" \
+     --project "$PROJECT_ID" --region "$REGION" \
+     --member "serviceAccount:${SCHEDULER_SA}" --role roles/run.invoker
+   gcloud scheduler jobs create http "${SERVICE}-catalog-daily" \
+     --project "$PROJECT_ID" --location "$REGION" \
+     --schedule "0 4 * * *" --time-zone "Etc/UTC" --http-method POST \
+     --uri "https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${REGION}/jobs/${SERVICE}-catalog:run" \
+     --oauth-service-account-email "$SCHEDULER_SA"
+   ```
+
+   The identity creating the scheduler job must have `iam.serviceAccounts.actAs`
+   on the scheduler service account. Cloud Scheduler reports whether the API
+   accepted the execution, not whether the import succeeded. Monitor Cloud Run
+   job execution failures and alert on missed/failed refreshes. The job has a
+   one-hour timeout and no automatic retries; rerun it manually after fixing
+   failures. Concurrent imports fail rather than overlap.
+
+In the Cloud Run service configuration, configure `APP_URL`,
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` for the
 service's HTTPS URL. Register the callback URL
 `https://YOUR_SERVICE_URL/auth/google/callback` in the Google OAuth client.
@@ -178,16 +246,5 @@ Set `FRONTEND_URL` to the service URL and `SANCTUM_STATEFUL_DOMAINS` to its
 hostname without the scheme. Keep OAuth credentials in Secret Manager rather
 than source control.
 
-**Data storage:** the local app defaults to SQLite. Cloud Run's local filesystem
-is ephemeral, so its SQLite database and card catalog can be lost when an
-instance is replaced, and data is not shared between instances. This setup is
-for initial testing only. For durable testing, provision Cloud SQL for MySQL,
-attach it to the Cloud Run service, grant the runtime service account
-`roles/cloudsql.client`, and set `DB_CONNECTION=mysql`, `DB_DATABASE`,
-`DB_USERNAME`, `DB_PASSWORD`, and `DB_SOCKET=/cloudsql/INSTANCE_CONNECTION_NAME`
-in the service configuration. Startup migrations and catalog imports will then
-use that database. The catalog is not bundled with the application.
-
-TODO: Create a Google Cloud background task to refresh the Scryfall bulk data
-daily, and coordinate it with instance startup so shared databases do not run
-overlapping imports.
+Cloud SQL persists data across Cloud Run instances and revisions, but it is not
+a substitute for tested backups. The catalog is not bundled with the image.

@@ -3,8 +3,11 @@
 namespace Tests\Feature\Api;
 
 use App\Models\User;
+use App\Services\ScryfallCatalogImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class CardCatalogTest extends TestCase
@@ -205,6 +208,103 @@ class CardCatalogTest extends TestCase
 
         $this->assertDatabaseCount('card_printings', 1);
         $this->assertDatabaseHas('card_printings', ['scryfall_id' => 'preserved-card']);
+    }
+
+    public function test_refresh_skips_download_when_the_source_version_is_already_imported(): void
+    {
+        $this->import([$this->printing('existing-card', 'oracle', 'Existing Card', '2024-01-01')]);
+        DB::table('catalog_imports')->insert(['dataset' => 'default_cards', 'source_updated_at' => '2026-11-19T00:00:00Z']);
+        Http::fake([
+            'api.scryfall.com/bulk-data' => Http::response(['data' => [[
+                'type' => 'default_cards',
+                'updated_at' => '2026-11-19T00:00:00Z',
+                'jsonl_download_uri' => 'https://data.scryfall.io/cards.jsonl.gz',
+            ]]]),
+        ]);
+
+        $this->artisan('scryfall:refresh')->assertExitCode(0);
+        Http::assertSentCount(1);
+
+        $this->import([$this->printing('manual-card', 'oracle', 'Manual Card', '2024-01-01')]);
+        $this->assertDatabaseMissing('catalog_imports', ['dataset' => 'default_cards']);
+    }
+
+    public function test_overlapping_refresh_fails_without_modifying_the_catalog(): void
+    {
+        $this->import([$this->printing('existing-card', 'oracle', 'Existing Card', '2024-01-01')]);
+        if (DB::getDriverName() === 'mysql') {
+            config(['database.connections.catalog_lock_test' => config('database.connections.mysql')]);
+            $connection = DB::connection('catalog_lock_test');
+            $this->assertSame(1, (int) $connection->selectOne("SELECT GET_LOCK('scryfall_catalog_refresh', 0) AS acquired")->acquired);
+        } else {
+            $lock = Cache::store('database')->lock('scryfall_catalog_refresh', 7200);
+            $this->assertTrue($lock->get());
+        }
+
+        try {
+            $this->artisan('scryfall:refresh')->assertExitCode(1);
+            $this->assertDatabaseHas('card_printings', ['scryfall_id' => 'existing-card']);
+        } finally {
+            if (isset($connection)) {
+                $connection->selectOne("SELECT RELEASE_LOCK('scryfall_catalog_refresh')");
+                DB::purge('catalog_lock_test');
+            } else {
+                $lock->release();
+            }
+        }
+    }
+
+    public function test_new_source_version_is_downloaded_once_and_imported(): void
+    {
+        DB::table('catalog_imports')->insert(['dataset' => 'default_cards', 'source_updated_at' => 'previous']);
+        Http::fake([
+            'api.scryfall.com/bulk-data' => Http::response(['data' => [[
+                'type' => 'default_cards',
+                'updated_at' => 'new-version',
+                'jsonl_download_uri' => 'https://data.scryfall.io/cards.jsonl.gz',
+            ]]]),
+            'data.scryfall.io/*' => Http::response(json_encode([
+                'id' => 'new-card', 'oracle_id' => 'oracle', 'name' => 'New Card', 'games' => ['paper'],
+            ], JSON_THROW_ON_ERROR)."\n"),
+        ]);
+
+        $this->artisan('scryfall:refresh')->assertExitCode(0);
+        $this->artisan('scryfall:refresh')->assertExitCode(0);
+        Http::assertSentCount(3);
+        $this->assertDatabaseHas('catalog_imports', ['dataset' => 'default_cards', 'source_updated_at' => 'new-version']);
+        $this->assertDatabaseHas('card_printings', ['scryfall_id' => 'new-card']);
+    }
+
+    public function test_successful_import_records_the_source_version(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'scryfall-version-');
+        file_put_contents($path, json_encode([$this->printing('new-card', 'oracle', 'New Card', '2024-01-01')], JSON_THROW_ON_ERROR));
+
+        try {
+            app(ScryfallCatalogImporter::class)->importFile($path, 'new-version');
+        } finally {
+            unlink($path);
+        }
+
+        $this->assertDatabaseHas('catalog_imports', ['dataset' => 'default_cards', 'source_updated_at' => 'new-version']);
+        $this->assertDatabaseHas('card_printings', ['scryfall_id' => 'new-card']);
+    }
+
+    public function test_failed_import_does_not_change_the_source_version(): void
+    {
+        $this->import([$this->printing('existing-card', 'oracle', 'Existing Card', '2024-01-01')]);
+        DB::table('catalog_imports')->insert(['dataset' => 'default_cards', 'source_updated_at' => 'previous']);
+        $path = tempnam(sys_get_temp_dir(), 'scryfall-invalid-');
+        file_put_contents($path, '[]');
+
+        try {
+            $this->artisan('scryfall:refresh', ['--file' => $path])->assertExitCode(1);
+        } finally {
+            unlink($path);
+        }
+
+        $this->assertDatabaseHas('catalog_imports', ['dataset' => 'default_cards', 'source_updated_at' => 'previous']);
+        $this->assertDatabaseHas('card_printings', ['scryfall_id' => 'existing-card']);
     }
 
     public function test_printings_returns_all_printings_most_recent_first(): void

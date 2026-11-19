@@ -33,6 +33,7 @@ return new class extends Migration
         }
 
         Schema::table('wish_list_items', function (Blueprint $table) {
+            $table->index('user_id');
             $table->dropUnique(['user_id', 'catalog_id']);
             $table->foreignId('wish_list_id')->nullable(false)->change();
             $table->unique(['wish_list_id', 'catalog_id']);
@@ -55,6 +56,11 @@ return new class extends Migration
             $table->dropConstrainedForeignId('wish_list_id');
             $table->unique(['user_id', 'catalog_id']);
         });
+        if (Schema::hasIndex('wish_list_items', 'wish_list_items_user_id_index')) {
+            Schema::table('wish_list_items', function (Blueprint $table) {
+                $table->dropIndex(['user_id']);
+            });
+        }
         Schema::dropIfExists('wish_lists');
     }
 };

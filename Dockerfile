@@ -43,4 +43,4 @@ ENV APP_ENV=production \
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "php artisan migrate --force && php artisan scryfall:refresh && exec apache2-foreground"]
+CMD ["sh", "-c", "if [ \"${DB_CONNECTION:-}\" != mysql ]; then echo 'Production requires a shared MySQL database.' >&2; exit 1; fi; exec apache2-foreground"]

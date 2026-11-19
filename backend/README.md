@@ -127,7 +127,7 @@ retains the original complete response.
 ## Scryfall card catalog
 
 The catalog stores paper card printings from Scryfall's `default_cards` bulk
-dataset in SQLite. Each Scryfall printing ID is unique; oracle IDs group
+dataset in the configured database. Each Scryfall printing ID is unique; oracle IDs group
 printings for a card. Image URLs, face image data, finishes, release details,
 and TCGplayer IDs (when supplied) are available from the printings endpoint.
 
@@ -147,9 +147,13 @@ The importer reads Scryfall's gzipped JSON Lines stream one card at a time
 without extracting the archive or loading the full catalog into memory. Plain
 JSONL and legacy JSON-array files are also accepted. Imports replace the catalog
 in a transaction, so a failed or empty import does not leave a partially
-refreshed catalog. The dev container and each Cloud Run instance refresh the
-catalog on startup; an import failure prevents startup. Laravel's scheduler
-also defines a weekly refresh. Run the scheduler continuously during local
+refreshed catalog. The last successfully imported Scryfall version is stored in
+the same transaction, and unchanged versions are not downloaded again. Manual
+file imports clear that version. A database-backed lock prevents overlapping
+refreshes; on MySQL the lock lasts until the connection closes. The dev container
+refreshes on startup. Cloud Run web instances do not refresh; a separate daily
+job does so (see the root README). Laravel's scheduler also defines a daily
+refresh for other environments. Run the scheduler continuously during local
 development with `php artisan schedule:work`; in production, it runs only if
 the standard Laravel `schedule:run` cron entry is configured every minute.
 

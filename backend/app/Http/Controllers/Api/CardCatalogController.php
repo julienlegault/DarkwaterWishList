@@ -29,7 +29,12 @@ class CardCatalogController extends Controller
     public function printings(string $catalogId): JsonResponse
     {
         $printings = CardPrinting::query()
-            ->whereRaw('COALESCE(oracle_id, scryfall_id) = ?', [$catalogId])
+            ->where(function ($query) use ($catalogId) {
+                $query->where('oracle_id', $catalogId)
+                    ->orWhere(function ($query) use ($catalogId) {
+                        $query->whereNull('oracle_id')->where('scryfall_id', $catalogId);
+                    });
+            })
             ->orderByDesc('released_at')
             ->orderBy('name')
             ->get([

@@ -10,7 +10,7 @@ class ScryfallCatalogImporter
 {
     private const BATCH_SIZE = 70;
 
-    public function importFile(string $path): int
+    public function importFile(string $path, ?string $sourceUpdatedAt = null): int
     {
         if (! is_file($path) || ! is_readable($path)) {
             throw new RuntimeException("Scryfall bulk data file is not readable: {$path}");
@@ -18,7 +18,7 @@ class ScryfallCatalogImporter
 
         $imported = 0;
 
-        DB::transaction(function () use ($path, &$imported): void {
+        DB::transaction(function () use ($path, $sourceUpdatedAt, &$imported): void {
             DB::table('card_printings')->delete();
             $batch = [];
             $timestamp = now();
@@ -66,6 +66,14 @@ class ScryfallCatalogImporter
 
             if ($imported === 0) {
                 throw new RuntimeException('Scryfall bulk data contained no importable card printings.');
+            }
+
+            DB::table('catalog_imports')->where('dataset', 'default_cards')->delete();
+            if ($sourceUpdatedAt !== null) {
+                DB::table('catalog_imports')->insert([
+                    'dataset' => 'default_cards',
+                    'source_updated_at' => $sourceUpdatedAt,
+                ]);
             }
         });
 

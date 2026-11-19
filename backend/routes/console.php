@@ -8,4 +8,4 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('scryfall:refresh')->weekly()->withoutOverlapping();
+Schedule::command('scryfall:refresh')->daily()->withoutOverlapping();

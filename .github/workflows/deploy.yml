@@ -12,11 +12,22 @@ permissions:
 
 concurrency:
   group: cloud-run-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-password
+          MYSQL_DATABASE: wishlist_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest-password"
+          --health-interval=10s --health-timeout=5s --health-retries=12
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +49,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
-          extensions: pdo_sqlite, sqlite3
+          extensions: pdo_sqlite, sqlite3, pdo_mysql
           coverage: none
 
       - run: composer install --no-interaction --prefer-dist
@@ -49,6 +60,17 @@ jobs:
       # Temporarily skip failing database tests; restore them once fixed.
       - run: php artisan test --filter '/^(?!.*(?:test_verified_google_email_authenticates_and_reuses_the_user|test_unverified_google_email_is_rejected|test_migration_preserves_existing_items))/'
         working-directory: backend
+
+      - name: Test MySQL migrations and catalog
+        run: php artisan test tests/Feature/Api/CardCatalogTest.php tests/Feature/Api/WishListsTest.php --filter '/test_(import_replaces_printings_without_duplicates_and_handles_optional_data|import_streams_gzip_jsonl_printings|failed_refresh_keeps_the_existing_catalog|refresh_skips_download_when_the_source_version_is_already_imported|overlapping_refresh_fails_without_modifying_the_catalog|new_source_version_is_downloaded_once_and_imported|successful_import_records_the_source_version|failed_import_does_not_change_the_source_version|printings_returns_all_printings_most_recent_first|lists_are_independent_and_scoped_to_the_owner|notification_and_confirmation_are_persisted_and_deletion_cascades)/'
+        working-directory: backend
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: wishlist_test
+          DB_USERNAME: root
+          DB_PASSWORD: test-password
 
       - uses: google-github-actions/auth@v2
         with:
@@ -63,16 +85,44 @@ jobs:
           REGION: ${{ vars.GCP_REGION }}
           REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
           SERVICE: ${{ vars.CLOUD_RUN_SERVICE_NAME }}
+          RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+          SQL_INSTANCE: ${{ vars.GCP_CLOUD_SQL_INSTANCE }}
+          DB_DATABASE: ${{ vars.GCP_DB_DATABASE }}
+          DB_USERNAME: ${{ vars.GCP_DB_USERNAME }}
+          DB_PASSWORD_SECRET: ${{ vars.GCP_DB_PASSWORD_SECRET }}
+          APP_KEY_SECRET: ${{ vars.GCP_APP_KEY_SECRET }}
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
           gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin "https://${REGION}-docker.pkg.dev"
           docker build --secret id=composer_auth,env=COMPOSER_AUTH --tag "$IMAGE" .
           docker push "$IMAGE"
+          DB_ENV="DB_CONNECTION=mysql,DB_DATABASE=${DB_DATABASE},DB_USERNAME=${DB_USERNAME},DB_SOCKET=/cloudsql/${SQL_INSTANCE},SESSION_DRIVER=database,CACHE_STORE=database"
+          SECRETS="DB_PASSWORD=${DB_PASSWORD_SECRET}:latest,APP_KEY=${APP_KEY_SECRET}:latest"
+          for JOB in "${SERVICE}-migrate" "${SERVICE}-catalog"; do
+            if [ "$JOB" = "${SERVICE}-migrate" ]; then
+              ARGS="artisan,migrate,--force"
+            else
+              ARGS="artisan,scryfall:refresh"
+            fi
+            gcloud run jobs deploy "$JOB" \
+              --project "$PROJECT_ID" --region "$REGION" \
+              --image "$IMAGE" --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+              --set-cloudsql-instances "$SQL_INSTANCE" \
+              --set-env-vars "$DB_ENV" --set-secrets "$SECRETS" \
+              --command php --args="$ARGS" \
+              --tasks 1 --max-retries 0 --task-timeout 3600s --memory 1Gi
+          done
+          gcloud run jobs execute "${SERVICE}-migrate" \
+            --project "$PROJECT_ID" --region "$REGION" --wait
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --platform managed \
             --image "$IMAGE" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --set-cloudsql-instances "$SQL_INSTANCE" \
+            --update-env-vars "$DB_ENV" \
+            --update-secrets "$SECRETS" \
             --port 8080 \
             --allow-unauthenticated
